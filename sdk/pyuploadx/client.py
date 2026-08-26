@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import threading
 from pathlib import Path
 from typing import Any
 
@@ -13,17 +11,14 @@ from pyuploadx.directory import walk_directory
 from pyuploadx.directory_state import DirectoryState
 from pyuploadx.exceptions import (
     ERROR_MAP,
-    AuthenticationError,
-    DirectoryUploadError,
-    ResumeError,
     UploadClientError,
 )
 from pyuploadx.fingerprint import fast_fingerprint
-from pyuploadx.manifest import manifest_hash_from_entries, serialize_ndjson
+from pyuploadx.manifest import manifest_hash_from_entries
 from pyuploadx.models import DirectoryJobInfo, FileInfo, UploadSessionInfo
 from pyuploadx.multipart import upload_all_parts
-from pyuploadx.retry import is_retryable_exception, retry
-from pyuploadx.state import FileUploadState, StateStore
+from pyuploadx.retry import retry
+from pyuploadx.state import StateStore
 
 
 class UploadClient:
@@ -98,6 +93,7 @@ class UploadClient:
         import json
 
         data: dict[str, str] = {"bucket": bucket, "object_key": resolved_key}
+        data["file_fingerprint"] = fingerprint
         if lifecycle is not None:
             data["lifecycle"] = json.dumps(
                 lifecycle.to_dict() if hasattr(lifecycle, "to_dict") else lifecycle
@@ -147,7 +143,7 @@ class UploadClient:
         else:
             missing = set(range(1, session.total_parts + 1))
 
-        parts = upload_all_parts(
+        upload_all_parts(
             http_post=lambda p, **kw: self._request("PUT", p, **kw),
             session=session,
             file_path=path,
@@ -155,6 +151,7 @@ class UploadClient:
             total_parts=session.total_parts,
             concurrency=concurrency,
             progress=self._upload_progress,
+            missing_parts=missing,
         )
 
         response = retry(lambda: self._request("POST", f"/v1/uploads/{session.id}/complete"))
@@ -357,7 +354,7 @@ class UploadClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "UploadClient":
+    def __enter__(self) -> UploadClient:
         return self
 
     def __exit__(self, *args: object) -> None:

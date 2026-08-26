@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
 from pyuploadx.exceptions import DirectoryUploadError, ValidationError
 from pyuploadx.fingerprint import fast_fingerprint
-from pyuploadx.ignore import IgnoreRules, default_ignore_rules
+from pyuploadx.ignore import default_ignore_rules
 from pyuploadx.paths import normalize_relative_path
 
 

@@ -11,14 +11,18 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
-    Enum as SAEnum,
     ForeignKey,
     Integer,
     String,
     Text,
     UniqueConstraint,
     Uuid,
+)
+from sqlalchemy import (
     BigInteger as _BigInteger,
+)
+from sqlalchemy import (
+    Enum as SAEnum,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 

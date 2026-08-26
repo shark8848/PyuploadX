@@ -7,7 +7,6 @@ from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import TypeVar
 
-
 T = TypeVar("T")
 
 
@@ -17,7 +16,7 @@ class GlobalSemaphore:
     def __init__(self, max_concurrent: int = 32) -> None:
         self._semaphore = threading.BoundedSemaphore(max_concurrent)
 
-    def __enter__(self) -> "GlobalSemaphore":
+    def __enter__(self) -> GlobalSemaphore:
         self._semaphore.acquire()
         return self
 

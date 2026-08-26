@@ -6,9 +6,9 @@ import asyncio
 import hashlib
 import os
 import shutil
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
-from collections.abc import AsyncIterator
 from typing import BinaryIO
 
 import aiofiles

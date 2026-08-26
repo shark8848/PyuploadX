@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -23,7 +23,7 @@ class FileInfo:
     completed_at: str | None = None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FileInfo":
+    def from_dict(cls, data: dict[str, Any]) -> FileInfo:
         return cls(
             id=data["id"],
             bucket=data["bucket"],
@@ -61,7 +61,7 @@ class UploadSessionInfo:
     expires_at: str | None = None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "UploadSessionInfo":
+    def from_dict(cls, data: dict[str, Any]) -> UploadSessionInfo:
         return cls(
             id=data["id"],
             bucket=data["bucket"],
@@ -110,7 +110,7 @@ class DirectoryJobInfo:
     effective_lifecycle: dict[str, Any] | None = None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "DirectoryJobInfo":
+    def from_dict(cls, data: dict[str, Any]) -> DirectoryJobInfo:
         return cls(
             id=data["id"],
             root_directory_name=data.get("root_directory_name", ""),

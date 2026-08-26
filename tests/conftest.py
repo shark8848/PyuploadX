@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-
 TEST_STATE: dict[str, str] = {}
 
 

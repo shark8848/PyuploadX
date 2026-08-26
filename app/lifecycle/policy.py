@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.core.errors import InvalidLifecyclePolicyError, TtlOutOfRangeError
@@ -10,7 +10,7 @@ from app.db.models import LifecycleAction, LifecycleMode
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def compute_effective_lifecycle(
@@ -65,7 +65,7 @@ def compute_effective_lifecycle(
         if isinstance(parsed, str):
             parsed = datetime.fromisoformat(parsed.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
+            parsed = parsed.replace(tzinfo=UTC)
         remaining = int((parsed - base).total_seconds())
         if remaining < minimum_ttl_seconds:
             raise TtlOutOfRangeError(remaining, minimum_ttl_seconds, maximum_ttl_seconds)
@@ -104,8 +104,5 @@ def apply_lifecycle_to_file(
     expires_at = None
     if effective.get("expires_at"):
         expires_at = datetime.fromisoformat(effective["expires_at"])
-    next_action_at = None
     ttl_seconds = effective.get("ttl_seconds")
-    if effective["action"] != "none" and expires_at is not None:
-        next_action_at = expires_at
     return effective, expires_at, ttl_seconds, effective["mode"]

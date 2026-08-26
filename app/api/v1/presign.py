@@ -8,7 +8,6 @@ from fastapi import APIRouter
 
 from app.api.dependencies import IdentityDep, SessionDep, StateDep
 
-
 router = APIRouter(prefix="/presign", tags=["presign"])
 
 
@@ -37,8 +36,8 @@ async def presign_get(
     identity: IdentityDep,
     body: dict[str, Any],
 ) -> dict[str, Any]:
-    from app.directory_upload.paths import normalize_relative_path
     from app.core.errors import ApiError
+    from app.directory_upload.paths import normalize_relative_path
 
     bucket = body["bucket"]
     if bucket not in state.settings.storage.allowed_buckets:

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 import asyncio
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.dependencies import AppState, build_app_state
+from app.api.dependencies import build_app_state
 from app.api.v1 import (
     client_config,
     directory_uploads,
@@ -38,10 +38,23 @@ def create_app(settings: Any = None, config_path: str | None = None) -> FastAPI:
     if settings.app.environment in ("development", "test") or url.startswith("sqlite"):
         from app.db.session import create_tables
 
-        asyncio.run(create_tables(state.engine))
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No running event loop (tests, CLI): create eagerly so in-process
+            # transports that skip lifespan still find tables.
+            asyncio.run(create_tables(state.engine))
+        # Under uvicorn the factory runs inside the serving loop; tables are
+        # created by the lifespan below before the first request is served.
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        if settings.app.environment in ("development", "test") or (
+            settings.database.url or ""
+        ).lower().startswith("sqlite"):
+            from app.db.session import create_tables
+
+            await create_tables(state.engine)
         yield
         await state.engine.dispose()
 

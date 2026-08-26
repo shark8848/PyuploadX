@@ -11,7 +11,7 @@ def fast_fingerprint(path: Path, sample_size: int = 64 * 1024) -> str:
     stat = path.stat()
     size = stat.st_size
     digest = hashlib.sha256()
-    digest.update(f"{size}:{stat.st_mtime_ns}".encode("utf-8"))
+    digest.update(f"{size}:{stat.st_mtime_ns}".encode())
     if size > 0:
         with path.open("rb") as file:
             head = file.read(min(sample_size, size))

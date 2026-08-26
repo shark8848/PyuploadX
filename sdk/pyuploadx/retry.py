@@ -9,7 +9,6 @@ from typing import TypeVar
 
 from pyuploadx.exceptions import UploadClientError
 
-
 RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 
 
@@ -48,7 +47,7 @@ def retry(
                 raise
             attempt += 1
             time.sleep(exponential_delay(attempt, base_delay, max_delay))
-        except (ConnectionError, TimeoutError) as exc:
+        except (ConnectionError, TimeoutError):
             if attempt >= max_attempts - 1:
                 raise
             attempt += 1

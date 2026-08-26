@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
+
+from app.core.errors import ManifestHashMismatchError
 from app.directory_upload.manifest import (
     manifest_hash_from_entries,
     parse_manifest_ndjson,
     serialize_manifest_ndjson,
     verify_manifest_hash,
 )
-from app.core.errors import ManifestHashMismatchError
-import pytest
 
 
 def test_manifest_hash_order_independent():

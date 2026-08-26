@@ -8,7 +8,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-
 FORBIDDEN_STATE_FIELDS = {"api_key", "bearer_token", "access_key", "secret_key", "presigned_url"}
 
 
@@ -32,7 +31,7 @@ class FileUploadState:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FileUploadState":
+    def from_dict(cls, data: dict[str, Any]) -> FileUploadState:
         data = dict(data)
         data["completed_parts"] = set(data.get("completed_parts", []))
         return cls(**data)

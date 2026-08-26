@@ -37,8 +37,9 @@ def upload_all_parts(
     concurrency: int,
     max_total_concurrent: int = 32,
     progress: Any = None,
+    missing_parts: set[int] | None = None,
 ) -> list[UploadedPart]:
-    """Upload every part of a file through the proxy endpoint."""
+    """Upload parts through the proxy endpoint; by default all parts."""
     uploaded: list[UploadedPart] = []
     lock = threading.Lock()
     scheduler = Scheduler(
@@ -76,7 +77,8 @@ def upload_all_parts(
                 progress(part_number, total_parts)
 
     try:
-        for part_number in range(1, total_parts + 1):
+        pending = missing_parts if missing_parts is not None else set(range(1, total_parts + 1))
+        for part_number in sorted(pending):
             scheduler.submit(upload_part, part_number)
         scheduler.wait_all()
     finally:

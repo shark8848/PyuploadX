@@ -5,7 +5,6 @@ from __future__ import annotations
 from app.core.errors import UploadStateConflictError
 from app.db.models import LifecycleStatus, UploadStatus
 
-
 UPLOAD_TRANSITIONS: dict[UploadStatus, set[UploadStatus]] = {
     UploadStatus.initiated: {UploadStatus.uploading, UploadStatus.aborting, UploadStatus.expired},
     UploadStatus.uploading: {

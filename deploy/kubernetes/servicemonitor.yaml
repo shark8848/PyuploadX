@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: upload-api
+  namespace: upload-service
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: upload-api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

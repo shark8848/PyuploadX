@@ -8,13 +8,11 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 
 from app.api.dependencies import IdentityDep, SessionDep, StateDep
-from app.core.errors import ApiError
 from app.directory_upload.manifest import parse_manifest_ndjson, serialize_manifest_ndjson
 from app.services.directory_upload_service import (
     serialize_entry,
     serialize_job,
 )
-
 
 router = APIRouter(prefix="/directory-uploads", tags=["directory-uploads"])
 

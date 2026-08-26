@@ -11,11 +11,9 @@ from app.config.loader import load_settings
 from app.core.logging import configure_logging
 from app.db.session import build_engine, build_session_factory
 from app.services.cleanup_service import CleanupService
-from app.services.reconcile_service import ReconcileService
 from app.storage.factory import build_storage
 from app.worker.cleanup import cleanup_loop
 from app.worker.lifecycle import lifecycle_loop
-
 
 logger = logging.getLogger("upload_service.worker")
 
@@ -25,7 +23,6 @@ async def _run_worker(settings: Any) -> None:
     session_factory = build_session_factory(engine)
     storage = build_storage(settings)
     cleanup = CleanupService(settings)
-    reconcile = ReconcileService(storage)
 
     tasks: list[asyncio.Task] = []
     if settings.worker.enabled:

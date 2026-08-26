@@ -8,9 +8,9 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
+    DirectoryJobStatus,
     DirectoryUploadEntry,
     DirectoryUploadJob,
-    DirectoryJobStatus,
 )
 
 

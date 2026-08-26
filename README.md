@@ -37,6 +37,20 @@ docker compose -f deploy/single-node/compose.yaml up -d --build
 docker compose -f deploy/cluster/compose.yaml up -d --build --scale api=3 --scale worker=2
 ```
 
+## Kubernetes 部署
+
+模板位于 `deploy/kubernetes/`（Namespace / Deployment / Service / Ingress / HPA / PDB /
+Secret / ConfigMap / ServiceMonitor）。API 默认 3 副本、`maxUnavailable: 0`、优雅终止 60s，
+并通过 `/readyz` 探针摘除故障节点。ServiceMonitor（`servicemonitor.yaml`）可被
+Prometheus Operator 直接发现：
+
+```bash
+kubectl apply -f deploy/kubernetes/
+```
+
+生产强制 HTTPS：Ingress 终止 TLS；单节点/集群部署由 `deploy/nginx/gateway.conf` 强制跳转
+HTTPS 并拒绝非白名单 Origin 的 CORS 请求。
+
 ## 本地开发
 
 ```bash
@@ -48,6 +62,27 @@ uvicorn app.main:create_app --factory --reload --host 0.0.0.0 --port 8000
 ```
 
 测试默认使用 SQLite（aiosqlite）；CI 使用 PostgreSQL。集群模式禁止 SQLite（`config validate` 会拒绝）。
+
+### 数据库迁移（Alembic）
+
+```bash
+alembic upgrade head    # 升级到最新 schema
+alembic downgrade -1    # 回退一个版本（仅限向后兼容的迁移）
+make migrate            # 等价于 alembic upgrade head
+```
+
+Schema 变更一律通过 Alembic 迁移交付，禁止用临时脚本改表（见 AGENTS.md Architecture Contracts）。
+
+### MinIO / S3 Adapter 测试
+
+```bash
+UPLOAD_MINIO_TEST=1 \
+UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL=http://localhost:9000 \
+S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin \
+python -m pytest tests/integration/test_s3_storage.py -q
+```
+
+未设置 `UPLOAD_MINIO_TEST=1` 时该套件自动跳过；CI 内置 MinIO 服务并始终运行它。
 
 ## 配置
 
@@ -67,6 +102,12 @@ python -m upload_service reconcile upload {upload_id} --dry-run
 | `UPLOAD_DATABASE_URL` | SQLAlchemy 异步 URL |
 | `UPLOAD_REDIS_URL` | Redis URL（`UPLOAD_REDIS__ENABLED=false` 可关闭） |
 | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | S3/MinIO 凭据 |
+
+## 备份与恢复
+
+运维手册见 [`docs/operations.md`](docs/operations.md)：PostgreSQL 每日全量备份与 PITR、
+对象存储 Versioning/复制/对象锁、恢复顺序（先 DB → 对象存储 → Redis → API 只读检查 →
+Reconcile Dry Run → Worker → 开放入口）、向后兼容的迁移与回滚原则（§28）。
 
 ## Python SDK
 
@@ -126,16 +167,36 @@ POST /v1/directory-uploads ... /v1/files/{id}/lifecycle ... /v1/client-config
 
 错误响应统一为 `{"error": {"code", "message", "details", "retryable", "request_id"}}`。
 
+## 可观测性
+
+- 健康检查：`/healthz`（Liveness）、`/readyz`（Readiness，检测数据库连通性）、`/startupz`。
+- 指标：`/metrics`（Prometheus 文本格式），覆盖上传/分片/断点/目录/生命周期/数据库/Redis/
+  Storage 全链路；Kubernetes 下由 `deploy/kubernetes/servicemonitor.yaml` 抓取。
+- 日志：结构化 JSON（request_id / trace_id / node_id / tenant_id / duration_ms 等），
+  不记录 Secret、完整 API Key 或完整预签名 URL（§23）。
+
+## 性能测试
+
+```bash
+python scripts/benchmark_upload.py --base-url http://localhost:8000 \
+    --api-key dev-key --files 100 --concurrency 16
+python scripts/benchmark_upload.py --large-mb 64 --part-size 8388608 --concurrency 8
+```
+
+场景对应 §29.7：并发小文件 Proxy 上传与 1 GiB 级大文件 Multipart（走 SDK 断点续传链路），
+输出吞吐与 p50/p95 延迟。大规模场景（10 万小文件、目录总大小 1 TiB）请在目标环境按需调参。
+
 ## 项目结构
 
 ```text
 app/        FastAPI 后端（api/config/core/db/storage/services/lifecycle/worker）
 sdk/pyuploadx/  Python 客户端 SDK
 portal/     React + TypeScript Portal（Dexie/IndexedDB 断点状态）
-deploy/     单节点/集群 Compose、Kubernetes、Nginx、MinIO 引导
+deploy/     单节点/集群 Compose、Kubernetes（含 ServiceMonitor）、Nginx、MinIO 引导
 config/     YAML 配置示例
 tests/      单元与集成测试
-docs/       设计文档与架构图（SVG 源 / PNG 生成）
+scripts/    渲染/文档检查/看板同步/性能测试脚本
+docs/       设计文档、运维手册与架构图（SVG 源 / PNG 生成）
 ```
 
 ## 数据库与 ORM 契约
@@ -144,6 +205,13 @@ docs/       设计文档与架构图（SVG 源 / PNG 生成）
 - 禁止裸 SQL 字符串 DML；唯一例外是仓储层内基于
   `sqlalchemy.dialects.postgresql.insert` 的 `ON CONFLICT` Upsert。
 - Schema 变更通过 Alembic 迁移交付。
+
+## 安全要点
+
+- 生产强制 HTTPS（Nginx/Ingress TLS 终止），CORS 仅允许显式配置的 Origin。
+- Secret 只通过环境变量注入，禁止写入 YAML 或提交到仓库；日志脱敏密钥与完整签名 URL。
+- PostgreSQL/Redis 不暴露公网（Compose 仅内部网络，K8s 无外部 Service）。
+- 对象 Key 与目录相对路径均做防路径逃逸校验；上传会话校验所有权，Complete/Abort 幂等。
 
 ## 文档图形（§35）
 

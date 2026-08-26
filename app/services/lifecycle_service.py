@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,12 +16,12 @@ from app.core.errors import (
     InvalidLifecyclePolicyError,
 )
 from app.db import repositories
-from app.db.models import FileObject, LifecycleEvent, LifecycleStatus
+from app.db.models import FileObject, LifecycleEvent
 from app.lifecycle.policy import compute_effective_lifecycle
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class LifecycleService:

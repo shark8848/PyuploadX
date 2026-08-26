@@ -14,7 +14,6 @@ from botocore.exceptions import BotoCoreError, ClientError
 from app.config.models import S3StorageConfig
 from app.core.errors import (
     ApiError,
-    StorageCapabilityNotSupportedError,
     StorageUnavailableError,
 )
 from app.storage.base import ObjectStream, StoredObject, UploadedPart

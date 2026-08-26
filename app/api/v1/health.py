@@ -6,8 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from app.api.dependencies import StateDep
-
+from app.api.dependencies import AppState, StateDep
 
 router = APIRouter()
 

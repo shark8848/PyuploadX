@@ -9,7 +9,6 @@ from fastapi import APIRouter
 
 from app.api.dependencies import IdentityDep, SessionDep, StateDep
 
-
 router = APIRouter(prefix="/files", tags=["lifecycle"])
 
 

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import shutil
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import select, update
@@ -12,12 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config.models import Settings
 from app.core import metrics
 from app.core.idempotency import expire_records
-from app.db import repositories
 from app.db.models import UploadSession, UploadStatus
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class CleanupService:
@@ -48,6 +48,9 @@ class CleanupService:
         return len(ids)
 
     async def cleanup_local_multipart_dirs(self, root: str, max_age_seconds: int = 86400) -> int:
+        return await asyncio.to_thread(self._cleanup_local_multipart_dirs_sync, root, max_age_seconds)
+
+    def _cleanup_local_multipart_dirs_sync(self, root: str, max_age_seconds: int) -> int:
         multipart_root = Path(root)
         if not multipart_root.exists():
             return 0
@@ -55,7 +58,7 @@ class CleanupService:
         cleaned = 0
         for child in multipart_root.iterdir():
             if child.is_dir():
-                mtime = datetime.fromtimestamp(child.stat().st_mtime, tz=timezone.utc)
+                mtime = datetime.fromtimestamp(child.stat().st_mtime, tz=UTC)
                 if mtime < cutoff:
                     shutil.rmtree(child, ignore_errors=True)
                     cleaned += 1

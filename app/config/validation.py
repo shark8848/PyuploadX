@@ -12,7 +12,7 @@ class ValidationResult:
     ok: bool
     errors: list[str] = field(default_factory=list)
 
-    def merge(self, other: "ValidationResult") -> None:
+    def merge(self, other: ValidationResult) -> None:
         self.ok = self.ok and other.ok
         self.errors.extend(other.errors)
 

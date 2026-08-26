@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from prometheus_client import Counter, Gauge, Histogram
 
-
 upload_requests_total = Counter(
     "upload_requests_total",
     "Total upload API requests.",

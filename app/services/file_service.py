@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
-import hashlib
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, BinaryIO
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +12,6 @@ from app.config.models import Settings
 from app.core.auth import Identity
 from app.core.errors import (
     ApiError,
-    ChecksumMismatchError,
     FileUnderLegalHoldError,
     ObjectAlreadyExistsError,
     StorageCapabilityNotSupportedError,
@@ -27,7 +24,7 @@ from app.storage.base import StorageAdapter
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def serialize_file(file_obj: FileObject) -> dict[str, Any]:

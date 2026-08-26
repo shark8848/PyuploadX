@@ -8,7 +8,6 @@ from fastapi import APIRouter
 
 from app.api.dependencies import StateDep
 
-
 router = APIRouter(tags=["client-config"])
 
 

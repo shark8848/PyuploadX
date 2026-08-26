@@ -1,4 +1,4 @@
-.PHONY: install dev test lint build diagrams diagrams-force docs-check portal-build compose-up compose-down
+.PHONY: install dev test lint build migrate diagrams diagrams-force docs-check portal-build compose-up compose-down benchmark test-minio
 
 install:
 	python -m pip install -e ".[dev,docs]"
@@ -15,6 +15,9 @@ lint:
 build:
 	python -m compileall -q app sdk upload_service
 
+migrate:
+	alembic upgrade head
+
 diagrams:
 	python scripts/render_diagrams.py
 
@@ -23,6 +26,7 @@ diagrams-force:
 
 docs-check:
 	python scripts/render_diagrams.py --check
+	python scripts/check_docs.py
 
 portal-build:
 	cd portal && npm install && npm run build
@@ -32,3 +36,9 @@ compose-up:
 
 compose-down:
 	docker compose -f docker-compose.yml down
+
+benchmark:
+	python scripts/benchmark_upload.py
+
+test-minio:
+	UPLOAD_MINIO_TEST=1 python -m pytest tests/integration/test_s3_storage.py -q

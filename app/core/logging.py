@@ -6,8 +6,7 @@ import json
 import logging
 import sys
 from contextvars import ContextVar
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 trace_id_var: ContextVar[str | None] = ContextVar("trace_id", default=None)
@@ -17,7 +16,7 @@ node_id_var: ContextVar[str | None] = ContextVar("node_id", default=None)
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, object] = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

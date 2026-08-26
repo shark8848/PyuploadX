@@ -11,7 +11,6 @@ import yaml
 
 from app.config.models import Settings
 
-
 _ENV_PREFIX = "UPLOAD_"
 _ENV_SEPARATOR = "__"
 

@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.services.cleanup_service import CleanupService
 
-
 logger = logging.getLogger("upload_service.worker.cleanup")
 
 

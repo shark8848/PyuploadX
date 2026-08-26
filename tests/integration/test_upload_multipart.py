@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import io
-
 
 def test_multipart_proxy_upload_flow(client, auth_headers):
     body = {

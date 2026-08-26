@@ -4,23 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core import metrics
-from app.core.errors import FileUnderLegalHoldError
 from app.db.models import FileObject, FileStatus, LifecycleEvent, LifecycleStatus
 from app.services.webhook_service import enqueue
 from app.storage.base import StorageAdapter
-
 
 logger = logging.getLogger("upload_service.worker.lifecycle")
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def _process_batch(

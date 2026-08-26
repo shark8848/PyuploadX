@@ -295,6 +295,6 @@ class Settings(BaseModel):
             self.cluster.node_id = os.environ.get(self.cluster.node_id_from_env, "node-unknown")
 
     @model_validator(mode="after")
-    def _validate_settings(self) -> "Settings":
+    def _validate_settings(self) -> Settings:
         self.resolve_secrets()
         return self

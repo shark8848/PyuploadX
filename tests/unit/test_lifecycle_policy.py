@@ -7,7 +7,6 @@ import pytest
 from app.core.errors import InvalidLifecyclePolicyError, TtlOutOfRangeError
 from app.lifecycle.policy import compute_effective_lifecycle
 
-
 BASE = {
     "server_default": {"mode": "ttl", "ttl_seconds": 2_592_000, "action": "delete"},
     "allow_client_override": True,

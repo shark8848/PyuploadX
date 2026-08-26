@@ -5,14 +5,13 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.config.models import Settings
 from app.core.auth import ApiKeyAuthenticator, Identity
-from app.core.errors import AuthenticationError
 from app.db.session import build_engine, build_session_factory
 from app.services.directory_upload_service import DirectoryUploadService
 from app.services.file_service import FileService
@@ -77,7 +76,6 @@ def get_identity(
 ) -> Identity:
     if state.settings.auth.mode == "none":
         return Identity(tenant_id="default", principal_id="anonymous")
-    header_name = state.settings.auth.api_key.header_name.lower().replace("-", "_")
     key = x_api_key
     if not key:
         key = request.headers.get(state.settings.auth.api_key.header_name)

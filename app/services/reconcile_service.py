@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import repositories
-from app.db.models import UploadPart, UploadSession
 from app.storage.base import StorageAdapter
 
 

@@ -6,7 +6,6 @@ import unicodedata
 
 from app.core.errors import InvalidRelativePathError
 
-
 _CONTROL_CHARS = {chr(code) for code in range(0, 32)} | {chr(127)}
 
 

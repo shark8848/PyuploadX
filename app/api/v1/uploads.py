@@ -11,7 +11,6 @@ from app.api.dependencies import IdentityDep, SessionDep, StateDep
 from app.core.streaming import spool_request
 from app.services.upload_service import serialize_session
 
-
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
 @router.post("")

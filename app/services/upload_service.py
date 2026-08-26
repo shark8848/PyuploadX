@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, BinaryIO
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,7 +45,7 @@ from app.storage.local import LocalStorageAdapter
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def serialize_session(session: UploadSession) -> dict[str, Any]:

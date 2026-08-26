@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,

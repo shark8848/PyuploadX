@@ -5,7 +5,6 @@ from __future__ import annotations
 from app.core.errors import UploadStateConflictError
 from app.db.models import DirectoryJobStatus
 
-
 TRANSITIONS: dict[DirectoryJobStatus, set[DirectoryJobStatus]] = {
     DirectoryJobStatus.created: {DirectoryJobStatus.manifest_uploading, DirectoryJobStatus.cancelling},
     DirectoryJobStatus.manifest_uploading: {

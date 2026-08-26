@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import os
 
-import pytest
-
 
 def test_env_nested_override(monkeypatch):
     monkeypatch.setenv("UPLOAD_SERVER__PORT", "8080")

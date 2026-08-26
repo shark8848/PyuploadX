@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Iterator
-
 
 active_trace_id: ContextVar[str | None] = ContextVar("active_trace_id", default=None)
 

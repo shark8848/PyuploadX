@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -23,10 +23,10 @@ from app.core.errors import (
 from app.db import repositories
 from app.db.models import (
     ConflictPolicy,
+    DirectoryJobStatus,
     DirectorySource,
     DirectoryUploadEntry,
     DirectoryUploadJob,
-    DirectoryJobStatus,
     EntryStatus,
     EntryType,
 )
@@ -38,7 +38,7 @@ from app.lifecycle.policy import compute_effective_lifecycle
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def serialize_job(job: DirectoryUploadJob) -> dict[str, Any]:

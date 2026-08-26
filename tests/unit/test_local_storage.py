@@ -6,9 +6,9 @@ import io
 
 import pytest
 
+from app.config.models import LocalStorageConfig
 from app.core.errors import ApiError
 from app.storage.local import LocalStorageAdapter, safe_join
-from app.config.models import LocalStorageConfig
 
 
 @pytest.fixture()
