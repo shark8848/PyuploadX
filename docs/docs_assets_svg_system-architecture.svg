@@ -1,0 +1,223 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1600 1000"
+     width="1600"
+     height="1000"
+     role="img"
+     aria-labelledby="title description">
+  <title id="title">文件上传服务总体架构</title>
+  <desc id="description">
+    展示SDK、Portal、Gateway、FastAPI集群、Worker、PostgreSQL、Redis和存储后端。
+  </desc>
+
+  <defs>
+    <style>
+      .title { font: 700 30px sans-serif; fill: #172554; }
+      .layer { font: 700 19px sans-serif; fill: #1e3a8a; }
+      .heading { font: 700 17px sans-serif; fill: #fff; }
+      .text { font: 14px sans-serif; fill: #334155; }
+      .small { font: 13px sans-serif; fill: #475569; }
+      .line {
+        stroke: #64748b;
+        stroke-width: 2.4;
+        fill: none;
+        marker-end: url(#arrow);
+      }
+      .direct {
+        stroke: #db2777;
+        stroke-width: 2.4;
+        stroke-dasharray: 9 6;
+        fill: none;
+        marker-end: url(#arrowPink);
+      }
+    </style>
+
+    <marker id="arrow" markerWidth="12" markerHeight="12"
+            refX="10" refY="4" orient="auto">
+      <path d="M0,0 L0,8 L11,4 z" fill="#64748b"/>
+    </marker>
+
+    <marker id="arrowPink" markerWidth="12" markerHeight="12"
+            refX="10" refY="4" orient="auto">
+      <path d="M0,0 L0,8 L11,4 z" fill="#db2777"/>
+    </marker>
+
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="3" stdDeviation="3"
+                    flood-color="#0f172a" flood-opacity="0.16"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="1000" rx="24" fill="#f8fafc"/>
+
+  <text x="800" y="48" text-anchor="middle" class="title">
+    文件与目录上传服务总体架构
+  </text>
+
+  <text x="35" y="130" class="layer">客户端层</text>
+
+  <rect x="175" y="85" width="270" height="100" rx="14"
+        fill="#2563eb" filter="url(#shadow)"/>
+  <text x="310" y="123" text-anchor="middle" class="heading">Python SDK</text>
+  <text x="310" y="151" text-anchor="middle" class="heading">
+    文件/目录/断点续传
+  </text>
+
+  <rect x="500" y="85" width="270" height="100" rx="14"
+        fill="#7c3aed" filter="url(#shadow)"/>
+  <text x="635" y="123" text-anchor="middle" class="heading">Upload Portal</text>
+  <text x="635" y="151" text-anchor="middle" class="heading">
+    HTTP/S 页面上传
+  </text>
+
+  <rect x="825" y="85" width="270" height="100" rx="14"
+        fill="#0891b2" filter="url(#shadow)"/>
+  <text x="960" y="123" text-anchor="middle" class="heading">业务应用</text>
+  <text x="960" y="151" text-anchor="middle" class="heading">
+    REST API / Webhook
+  </text>
+
+  <rect x="1150" y="85" width="270" height="100" rx="14"
+        fill="#db2777" filter="url(#shadow)"/>
+  <text x="1285" y="123" text-anchor="middle" class="heading">Web/Mobile</text>
+  <text x="1285" y="151" text-anchor="middle" class="heading">
+    Presigned Direct Upload
+  </text>
+
+  <text x="35" y="270" class="layer">接入层</text>
+
+  <rect x="250" y="225" width="1100" height="90" rx="14"
+        fill="#0f172a" filter="url(#shadow)"/>
+  <text x="800" y="263" text-anchor="middle" class="heading">
+    HTTPS Gateway / WAF / Load Balancer / Ingress
+  </text>
+  <text x="800" y="291" text-anchor="middle" class="heading">
+    TLS · CORS · Auth · Rate Limit · Request ID · Routing
+  </text>
+
+  <text x="35" y="430" class="layer">应用层</text>
+
+  <rect x="150" y="365" width="290" height="125" rx="14"
+        fill="#2563eb" filter="url(#shadow)"/>
+  <text x="295" y="405" text-anchor="middle" class="heading">FastAPI Node 1</text>
+  <text x="295" y="434" text-anchor="middle" class="heading">
+    Upload / Files / Lifecycle
+  </text>
+  <text x="295" y="463" text-anchor="middle" class="heading">
+    Stateless
+  </text>
+
+  <rect x="500" y="365" width="290" height="125" rx="14"
+        fill="#2563eb" filter="url(#shadow)"/>
+  <text x="645" y="405" text-anchor="middle" class="heading">FastAPI Node 2</text>
+  <text x="645" y="434" text-anchor="middle" class="heading">
+    Directory / Presign
+  </text>
+  <text x="645" y="463" text-anchor="middle" class="heading">
+    Stateless
+  </text>
+
+  <rect x="850" y="365" width="290" height="125" rx="14"
+        fill="#2563eb" filter="url(#shadow)"/>
+  <text x="995" y="405" text-anchor="middle" class="heading">FastAPI Node N</text>
+  <text x="995" y="434" text-anchor="middle" class="heading">
+    Auth / Metadata
+  </text>
+  <text x="995" y="463" text-anchor="middle" class="heading">
+    Stateless
+  </text>
+
+  <rect x="1200" y="365" width="250" height="125" rx="14"
+        fill="#ea580c" filter="url(#shadow)"/>
+  <text x="1325" y="405" text-anchor="middle" class="heading">Worker Cluster</text>
+  <text x="1325" y="434" text-anchor="middle" class="heading">
+    Lifecycle / Cleanup
+  </text>
+  <text x="1325" y="463" text-anchor="middle" class="heading">
+    Reconcile / Webhook
+  </text>
+
+  <text x="35" y="620" class="layer">状态层</text>
+
+  <rect x="220" y="555" width="470" height="125" rx="14"
+        fill="#0f766e" filter="url(#shadow)"/>
+  <text x="455" y="595" text-anchor="middle" class="heading">PostgreSQL</text>
+  <text x="455" y="624" text-anchor="middle" class="heading">
+    Files · Upload Sessions · Directory Jobs
+  </text>
+  <text x="455" y="653" text-anchor="middle" class="heading">
+    Lifecycle · Idempotency · Audit
+  </text>
+
+  <rect x="810" y="555" width="470" height="125" rx="14"
+        fill="#dc2626" filter="url(#shadow)"/>
+  <text x="1045" y="595" text-anchor="middle" class="heading">Redis</text>
+  <text x="1045" y="624" text-anchor="middle" class="heading">
+    Rate Limit · Cache · Progress
+  </text>
+  <text x="1045" y="653" text-anchor="middle" class="heading">
+    Temporary Lease · SSE Helper
+  </text>
+
+  <text x="35" y="795" class="layer">存储层</text>
+
+  <rect x="120" y="735" width="390" height="125" rx="14"
+        fill="#f59e0b" filter="url(#shadow)"/>
+  <text x="315" y="775" text-anchor="middle" class="heading">
+    Local / Shared Filesystem
+  </text>
+  <text x="315" y="804" text-anchor="middle" class="heading">
+    Local Disk · NFS · CephFS
+  </text>
+  <text x="315" y="833" text-anchor="middle" class="heading">
+    Cluster Requires Shared Storage
+  </text>
+
+  <rect x="605" y="735" width="390" height="125" rx="14"
+        fill="#db2777" filter="url(#shadow)"/>
+  <text x="800" y="775" text-anchor="middle" class="heading">MinIO</text>
+  <text x="800" y="804" text-anchor="middle" class="heading">
+    Multipart · Presigned URL
+  </text>
+  <text x="800" y="833" text-anchor="middle" class="heading">
+    Private Deployment
+  </text>
+
+  <rect x="1090" y="735" width="390" height="125" rx="14"
+        fill="#0891b2" filter="url(#shadow)"/>
+  <text x="1285" y="775" text-anchor="middle" class="heading">
+    S3 Compatible Storage
+  </text>
+  <text x="1285" y="804" text-anchor="middle" class="heading">
+    AWS S3 · Cloud Object Storage
+  </text>
+  <text x="1285" y="833" text-anchor="middle" class="heading">
+    Production Preferred
+  </text>
+
+  <rect x="120" y="910" width="1360" height="55" rx="12" fill="#334155"/>
+  <text x="800" y="945" text-anchor="middle" class="heading">
+    OpenTelemetry · Prometheus · Grafana · Structured Logs
+  </text>
+
+  <path d="M310 185 L500 225" class="line"/>
+  <path d="M635 185 L680 225" class="line"/>
+  <path d="M960 185 L920 225" class="line"/>
+  <path d="M1285 185 L1100 225" class="line"/>
+
+  <path d="M500 315 L295 365" class="line"/>
+  <path d="M700 315 L645 365" class="line"/>
+  <path d="M900 315 L995 365" class="line"/>
+  <path d="M1100 315 L1325 365" class="line"/>
+
+  <path d="M295 490 L455 555" class="line"/>
+  <path d="M645 490 L455 555" class="line"/>
+  <path d="M995 490 L1045 555" class="line"/>
+  <path d="M1325 490 L1045 555" class="line"/>
+
+  <path d="M455 680 L315 735" class="line"/>
+  <path d="M650 680 L800 735" class="line"/>
+  <path d="M1045 680 L1285 735" class="line"/>
+
+  <path d="M635 185 Q720 560 800 735" class="direct"/>
+  <path d="M1285 185 Q1370 500 1285 735" class="direct"/>
+</svg>

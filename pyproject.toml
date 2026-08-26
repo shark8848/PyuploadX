@@ -1,0 +1,4 @@
+[project.optional-dependencies]
+docs = [
+    "CairoSVG>=2.7,<3",
+]

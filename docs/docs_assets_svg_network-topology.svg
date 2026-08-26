@@ -1,0 +1,241 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1700 1100"
+     width="1700"
+     height="1100"
+     role="img"
+     aria-labelledby="title description">
+  <title id="title">文件上传服务生产组网拓扑</title>
+  <desc id="description">
+    展示公网区、接入区、应用区、数据区和管理区之间的网络访问关系。
+  </desc>
+
+  <defs>
+    <style>
+      .title { font: 700 30px sans-serif; fill: #172554; }
+      .zoneTitle { font: 700 20px sans-serif; fill: #172554; }
+      .heading { font: 700 15px sans-serif; fill: #fff; }
+      .note { font: 14px sans-serif; fill: #334155; }
+      .line {
+        stroke: #64748b;
+        stroke-width: 2.4;
+        fill: none;
+        marker-end: url(#arrow);
+      }
+      .direct {
+        stroke: #db2777;
+        stroke-width: 2.5;
+        stroke-dasharray: 9 6;
+        fill: none;
+        marker-end: url(#pinkArrow);
+      }
+      .management {
+        stroke: #7c3aed;
+        stroke-width: 2.3;
+        stroke-dasharray: 5 5;
+        fill: none;
+        marker-end: url(#purpleArrow);
+      }
+    </style>
+
+    <marker id="arrow" markerWidth="12" markerHeight="12"
+            refX="10" refY="4" orient="auto">
+      <path d="M0,0 L0,8 L11,4 z" fill="#64748b"/>
+    </marker>
+
+    <marker id="pinkArrow" markerWidth="12" markerHeight="12"
+            refX="10" refY="4" orient="auto">
+      <path d="M0,0 L0,8 L11,4 z" fill="#db2777"/>
+    </marker>
+
+    <marker id="purpleArrow" markerWidth="12" markerHeight="12"
+            refX="10" refY="4" orient="auto">
+      <path d="M0,0 L0,8 L11,4 z" fill="#7c3aed"/>
+    </marker>
+
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="3" stdDeviation="3"
+                    flood-color="#0f172a" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <rect width="1700" height="1100" rx="24" fill="#f8fafc"/>
+
+  <text x="850" y="48" text-anchor="middle" class="title">
+    生产环境网络拓扑
+  </text>
+
+  <!-- Internet zone -->
+  <rect x="60" y="85" width="1580" height="145" rx="18"
+        fill="#e0f2fe" stroke="#0284c7" stroke-width="2"/>
+  <text x="90" y="120" class="zoneTitle">公网区</text>
+
+  <rect x="210" y="135" width="300" height="70" rx="12"
+        fill="#2563eb" filter="url(#shadow)"/>
+  <text x="360" y="177" text-anchor="middle" class="heading">
+    Python SDK / Business Client
+  </text>
+
+  <rect x="700" y="135" width="300" height="70" rx="12"
+        fill="#7c3aed" filter="url(#shadow)"/>
+  <text x="850" y="177" text-anchor="middle" class="heading">
+    Portal Browser
+  </text>
+
+  <rect x="1190" y="135" width="300" height="70" rx="12"
+        fill="#0891b2" filter="url(#shadow)"/>
+  <text x="1340" y="177" text-anchor="middle" class="heading">
+    Web / Mobile Client
+  </text>
+
+  <!-- Edge zone -->
+  <rect x="60" y="270" width="1580" height="175" rx="18"
+        fill="#f1f5f9" stroke="#475569" stroke-width="2"/>
+  <text x="90" y="305" class="zoneTitle">接入区 / DMZ</text>
+
+  <rect x="170" y="335" width="340" height="80" rx="12"
+        fill="#0f172a" filter="url(#shadow)"/>
+  <text x="340" y="369" text-anchor="middle" class="heading">
+    CDN / WAF
+  </text>
+  <text x="340" y="395" text-anchor="middle" class="heading">
+    DDoS Protection
+  </text>
+
+  <rect x="680" y="335" width="340" height="80" rx="12"
+        fill="#334155" filter="url(#shadow)"/>
+  <text x="850" y="369" text-anchor="middle" class="heading">
+    Public Load Balancer
+  </text>
+  <text x="850" y="395" text-anchor="middle" class="heading">
+    HTTPS :443
+  </text>
+
+  <rect x="1190" y="335" width="340" height="80" rx="12"
+        fill="#475569" filter="url(#shadow)"/>
+  <text x="1360" y="369" text-anchor="middle" class="heading">
+    API Gateway / Ingress
+  </text>
+  <text x="1360" y="395" text-anchor="middle" class="heading">
+    Auth · CORS · Rate Limit
+  </text>
+
+  <!-- Application zone -->
+  <rect x="60" y="485" width="1580" height="200" rx="18"
+        fill="#eef2ff" stroke="#6366f1" stroke-width="2"/>
+  <text x="90" y="520" class="zoneTitle">应用区</text>
+
+  <rect x="150" y="555" width="310" height="90" rx="12"
+        fill="#7c3aed" filter="url(#shadow)"/>
+  <text x="305" y="590" text-anchor="middle" class="heading">
+    Portal Service
+  </text>
+  <text x="305" y="618" text-anchor="middle" class="heading">
+    Static Frontend
+  </text>
+
+  <rect x="540" y="555" width="400" height="90" rx="12"
+        fill="#2563eb" filter="url(#shadow)"/>
+  <text x="740" y="590" text-anchor="middle" class="heading">
+    FastAPI Cluster
+  </text>
+  <text x="740" y="618" text-anchor="middle" class="heading">
+    3+ Stateless Replicas
+  </text>
+
+  <rect x="1020" y="555" width="400" height="90" rx="12"
+        fill="#ea580c" filter="url(#shadow)"/>
+  <text x="1220" y="590" text-anchor="middle" class="heading">
+    Worker Cluster
+  </text>
+  <text x="1220" y="618" text-anchor="middle" class="heading">
+    Lifecycle · Cleanup · Reconcile
+  </text>
+
+  <!-- Data zone -->
+  <rect x="60" y="725" width="1580" height="205" rx="18"
+        fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+  <text x="90" y="760" class="zoneTitle">数据区</text>
+
+  <rect x="115" y="800" width="320" height="90" rx="12"
+        fill="#0f766e" filter="url(#shadow)"/>
+  <text x="275" y="835" text-anchor="middle" class="heading">
+    PostgreSQL HA
+  </text>
+  <text x="275" y="863" text-anchor="middle" class="heading">
+    Private :5432
+  </text>
+
+  <rect x="500" y="800" width="320" height="90" rx="12"
+        fill="#dc2626" filter="url(#shadow)"/>
+  <text x="660" y="835" text-anchor="middle" class="heading">
+    Redis HA
+  </text>
+  <text x="660" y="863" text-anchor="middle" class="heading">
+    Private :6379
+  </text>
+
+  <rect x="885" y="800" width="320" height="90" rx="12"
+        fill="#db2777" filter="url(#shadow)"/>
+  <text x="1045" y="835" text-anchor="middle" class="heading">
+    MinIO / S3 Data API
+  </text>
+  <text x="1045" y="863" text-anchor="middle" class="heading">
+    Presigned Access
+  </text>
+
+  <rect x="1270" y="800" width="320" height="90" rx="12"
+        fill="#f59e0b" filter="url(#shadow)"/>
+  <text x="1430" y="835" text-anchor="middle" class="heading">
+    Backup / Archive
+  </text>
+  <text x="1430" y="863" text-anchor="middle" class="heading">
+    Private Network
+  </text>
+
+  <!-- Management zone -->
+  <rect x="60" y="970" width="1580" height="90" rx="18"
+        fill="#faf5ff" stroke="#9333ea" stroke-width="2"/>
+  <text x="90" y="1005" class="zoneTitle">管理区</text>
+
+  <rect x="300" y="990" width="310" height="50" rx="10" fill="#7c3aed"/>
+  <text x="455" y="1021" text-anchor="middle" class="heading">
+    VPN / Bastion Host
+  </text>
+
+  <rect x="695" y="990" width="310" height="50" rx="10" fill="#4f46e5"/>
+  <text x="850" y="1021" text-anchor="middle" class="heading">
+    Prometheus / Grafana
+  </text>
+
+  <rect x="1090" y="990" width="310" height="50" rx="10" fill="#6d28d9"/>
+  <text x="1245" y="1021" text-anchor="middle" class="heading">
+    Logs / Traces / Console
+  </text>
+
+  <!-- Connections -->
+  <path d="M360 205 L340 335" class="line"/>
+  <path d="M850 205 L850 335" class="line"/>
+  <path d="M1340 205 L1360 335" class="line"/>
+
+  <path d="M510 375 L680 375" class="line"/>
+  <path d="M1020 375 L1190 375" class="line"/>
+
+  <path d="M1280 415 L740 555" class="line"/>
+  <path d="M1250 415 L305 555" class="line"/>
+  <path d="M1400 415 L1220 555" class="line"/>
+
+  <path d="M650 645 L275 800" class="line"/>
+  <path d="M740 645 L660 800" class="line"/>
+  <path d="M830 645 L1045 800" class="line"/>
+  <path d="M1220 645 L1045 800" class="line"/>
+  <path d="M1220 645 L1430 800" class="line"/>
+
+  <!-- Browser direct upload -->
+  <path d="M850 205 Q1550 450 1045 800" class="direct"/>
+  <path d="M1340 205 Q1600 480 1045 800" class="direct"/>
+
+  <!-- Management -->
+  <path d="M455 990 Q300 930 275 890" class="management"/>
+  <path d="M850 990 Q740 810 740 645" class="management"/>
+  <path d="M1245 990 Q1220 800 1220 645" class="management"/>
+</svg>
