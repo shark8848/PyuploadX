@@ -1,0 +1,9 @@
+.venv
+**/__pycache__
+*.pyc
+*:Zone.Identifier
+portal/node_modules
+portal/dist
+docs/assets/png
+.git
+tests

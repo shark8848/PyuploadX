@@ -1,0 +1,21 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: upload-api
+  namespace: upload-service
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: upload-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: upload-worker
+  namespace: upload-service
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: upload-worker

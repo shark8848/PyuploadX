@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: upload-config
+  namespace: upload-service
+data:
+  config.yaml: |
+    app:
+      name: upload-service
+      environment: production
+      version: "1.4.0"
+    server:
+      host: 0.0.0.0
+      port: 8000
+      proxy_headers: true
+    auth:
+      mode: api_key
+    storage:
+      backend: s3
+      default_bucket: app-default
+      allowed_buckets: [app-default, public-assets]
+      s3:
+        internal_endpoint_url: http://minio:9000
+        public_endpoint_url: https://objects.example.com
+        region: us-east-1
+        force_path_style: true
+        use_ssl: false
+    portal:
+      public_base_url: https://upload.example.com
+      origins: [https://upload.example.com]
+    cluster:
+      enabled: true
+      node_id_from_env: HOSTNAME
+    lifecycle:
+      worker:
+        scan_interval_seconds: 60

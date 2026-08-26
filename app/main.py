@@ -1,0 +1,91 @@
+"""FastAPI application factory per docs_product-design.md."""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+import asyncio
+from typing import Any
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.dependencies import AppState, build_app_state
+from app.api.v1 import (
+    client_config,
+    directory_uploads,
+    files,
+    health,
+    lifecycle,
+    presign,
+    uploads,
+)
+from app.config.loader import load_settings
+from app.config.validation import validate_settings
+from app.core.errors import register_exception_handlers
+from app.core.logging import configure_logging, request_id_var
+
+
+def create_app(settings: Any = None, config_path: str | None = None) -> FastAPI:
+    if settings is None:
+        settings = load_settings(config_path)
+    validation = validate_settings(settings)
+    if not validation.ok:
+        raise ValueError("invalid configuration:\n- " + "\n- ".join(validation.errors))
+    configure_logging(level=settings.logging.level, fmt=settings.logging.format)
+
+    state = build_app_state(settings)
+    url = (settings.database.url or "").lower()
+    if settings.app.environment in ("development", "test") or url.startswith("sqlite"):
+        from app.db.session import create_tables
+
+        asyncio.run(create_tables(state.engine))
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        yield
+        await state.engine.dispose()
+
+    app = FastAPI(
+        title=settings.app.name,
+        version=settings.app.version,
+        docs_url="/docs",
+        openapi_url="/openapi.json",
+        lifespan=lifespan,
+    )
+    app.state.settings = settings
+    app.state.state = state
+
+    origins = settings.portal.origins or []
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=settings.portal.cors.allow_credentials,
+        allow_methods=settings.portal.cors.allow_methods,
+        allow_headers=settings.portal.cors.allow_headers,
+        expose_headers=settings.portal.cors.expose_headers,
+    )
+
+    @app.middleware("http")
+    async def request_context(request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID")
+        if not request_id:
+            import uuid
+
+            request_id = f"req-{uuid.uuid4().hex[:16]}"
+        token = request_id_var.set(request_id)
+        try:
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = request_id
+            return response
+        finally:
+            request_id_var.reset(token)
+
+    register_exception_handlers(app)
+    app.include_router(health.router)
+    app.include_router(files.router, prefix="/v1")
+    app.include_router(uploads.router, prefix="/v1")
+    app.include_router(directory_uploads.router, prefix="/v1")
+    app.include_router(lifecycle.router, prefix="/v1")
+    app.include_router(presign.router, prefix="/v1")
+    app.include_router(client_config.router, prefix="/v1")
+    return app

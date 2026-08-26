@@ -1,0 +1,59 @@
+app:
+  name: upload-service
+  environment: development
+  version: "1.4.0"
+  debug: false
+
+server:
+  host: 0.0.0.0
+  port: 8000
+  workers: 2
+  proxy_headers: true
+
+auth:
+  mode: api_key
+  api_key:
+    header_name: X-API-Key
+    keys_from_env: UPLOAD_API_KEYS
+
+database:
+  url_from_env: UPLOAD_DATABASE_URL
+  pool_size: 20
+  max_overflow: 20
+
+redis:
+  enabled: true
+  url_from_env: UPLOAD_REDIS_URL
+  key_prefix: upload-service
+
+storage:
+  backend: s3
+  default_bucket: app-default
+  allowed_buckets:
+    - app-default
+    - public-assets
+  local:
+    root_path: /data/storage
+    multipart_path: /data/storage/.multipart
+    require_shared_filesystem_in_cluster: true
+    fsync: true
+  s3:
+    internal_endpoint_url: http://minio:9000
+    public_endpoint_url: http://localhost:9000
+    region: us-east-1
+    access_key_from_env: S3_ACCESS_KEY
+    secret_key_from_env: S3_SECRET_KEY
+    force_path_style: true
+    use_ssl: false
+    verify_ssl: false
+
+portal:
+  enabled: true
+  public_base_url: http://localhost:5173
+  origins:
+    - http://localhost:5173
+    - http://localhost:8080
+
+cluster:
+  enabled: false
+  node_id_from_env: HOSTNAME

@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: upload-worker
+  namespace: upload-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: upload-worker
+  template:
+    metadata:
+      labels:
+        app: upload-worker
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: pyuploadx/upload-worker:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: upload-secrets
+          env:
+            - name: UPLOAD_CONFIG_PATH
+              value: /etc/upload-service/config.yaml
+          volumeMounts:
+            - name: config
+              mountPath: /etc/upload-service
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: upload-config
