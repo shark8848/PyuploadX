@@ -1,111 +1,60 @@
 name: pyuploadx
 
+# PostgreSQL / Redis / MinIO 等第三方组件不在此文件构建或运行：
+# 通过环境变量指向本地或已有实例（默认 host.docker.internal，即宿主机地址）。
+# 需要自带组件时使用 deploy/infra/compose.yaml（或 deploy/single-node|cluster/compose.yaml）。
+
+x-app-env: &app-env
+  UPLOAD_API_KEYS: '${UPLOAD_API_KEYS:-["dev-key"]}'
+  UPLOAD_DATABASE_URL: '${UPLOAD_DATABASE_URL:-postgresql+asyncpg://upload:upload@host.docker.internal:5432/uploads}'
+  UPLOAD_REDIS__ENABLED: '${UPLOAD_REDIS__ENABLED:-true}'
+  UPLOAD_REDIS_URL: '${UPLOAD_REDIS_URL:-redis://host.docker.internal:6379/0}'
+  UPLOAD_CLUSTER__ENABLED: '${UPLOAD_CLUSTER__ENABLED:-false}'
+  UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL: '${UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL:-http://host.docker.internal:9000}'
+  UPLOAD_STORAGE__S3__PUBLIC_ENDPOINT_URL: '${UPLOAD_STORAGE__S3__PUBLIC_ENDPOINT_URL:-http://localhost:9000}'
+  S3_ACCESS_KEY: '${S3_ACCESS_KEY:-minioadmin}'
+  S3_SECRET_KEY: '${S3_SECRET_KEY:-minioadmin}'
+
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: upload
-      POSTGRES_PASSWORD: upload
-      POSTGRES_DB: uploads
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U upload"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  redis:
-    image: redis:7-alpine
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    volumes:
-      - minio-data:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  minio-bootstrap:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 minioadmin minioadmin &&
-      mc mb --ignore-existing local/app-default &&
-      mc mb --ignore-existing local/public-assets &&
-      mc anonymous set download local/public-assets
-      "
-
-  api:
+  migrate:
     build:
       context: .
       target: api
-    environment:
-      UPLOAD_API_KEYS: '{"acme/alice": ["dev-key"]}'
-      UPLOAD_DATABASE_URL: postgresql+asyncpg://upload:upload@postgres:5432/uploads
-      UPLOAD_REDIS_URL: redis://redis:6379/0
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: minioadmin
-      UPLOAD_CLUSTER__ENABLED: "true"
-      UPLOAD_STORAGE__S3__PUBLIC_ENDPOINT_URL: http://localhost:9000
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      minio-bootstrap:
-        condition: service_completed_successfully
+    command: ["alembic", "upgrade", "head"]
+    environment: *app-env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  upload-api:
+    build:
+      context: .
+      target: api
+    environment: *app-env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
   worker:
     build:
       context: .
       target: worker
-    environment:
-      UPLOAD_API_KEYS: '{"acme/alice": ["dev-key"]}'
-      UPLOAD_DATABASE_URL: postgresql+asyncpg://upload:upload@postgres:5432/uploads
-      UPLOAD_REDIS_URL: redis://redis:6379/0
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: minioadmin
-      UPLOAD_CLUSTER__ENABLED: "true"
+    environment: *app-env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   portal:
     build:
       context: portal
       args:
-        UPLOAD_API_URL: http://api:8000
+        UPLOAD_API_URL: '${UPLOAD_API_URL:-http://upload-api:8000}'
     depends_on:
-      - api
+      - upload-api
     ports:
-      - "5173:80"
-
-volumes:
-  postgres-data:
-  minio-data:
+      - "${PORTAL_PORT:-5173}:80"

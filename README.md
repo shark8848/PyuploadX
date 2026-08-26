@@ -18,10 +18,35 @@ PyUploadX 是一个轻量、可独立部署、可水平扩展的文件与目录�
 FastAPI · SQLAlchemy 2（ORM）· Alembic · PostgreSQL · Redis · boto3 · Python SDK（httpx）·
 React + TypeScript + Vite + Dexie · Docker Compose · Kubernetes · pytest
 
-## 快速开始（Docker Compose 单节点）
+## 快速开始（Docker Compose）
+
+PostgreSQL / Redis / MinIO 等第三方组件**不随应用镜像构建**：默认通过环境变量指向
+本地或已有实例（默认地址 `host.docker.internal`，即宿主机；端口与凭据均可覆盖）。
+
+方式 A：使用本地/已有 PostgreSQL、Redis、MinIO
 
 ```bash
-docker compose up -d --build
+# 可选：覆盖默认地址与凭据
+export UPLOAD_DATABASE_URL='postgresql+asyncpg://upload:upload@localhost:5432/uploads'
+export UPLOAD_REDIS_URL='redis://localhost:6379/0'
+export UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL='http://localhost:9000'
+export S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin
+docker compose up -d --build          # migrate → upload-api → worker → portal
+```
+
+方式 B：自带第三方组件（`deploy/infra/compose.yaml`，端口可用 `POSTGRES_PORT`、
+`REDIS_PORT`、`MINIO_PORT` 覆盖）
+
+```bash
+docker compose -f deploy/infra/compose.yaml up -d          # postgres/redis/minio + 建桶
+docker compose up -d --build                               # 应用服务
+```
+
+单节点/集群一键（含组件）：
+
+```bash
+docker compose -f deploy/single-node/compose.yaml up -d --build
+docker compose -f deploy/cluster/compose.yaml up -d --build --scale upload-api=3 --scale worker=2
 ```
 
 启动后：
@@ -29,13 +54,6 @@ docker compose up -d --build
 - API/OpenAPI：http://localhost:8000/docs
 - Portal：http://localhost:5173（API Key：`dev-key`）
 - MinIO Console：http://localhost:9001（`minioadmin` / `minioadmin`）
-
-也可按设计文档使用独立 Compose 文件：
-
-```bash
-docker compose -f deploy/single-node/compose.yaml up -d --build
-docker compose -f deploy/cluster/compose.yaml up -d --build --scale api=3 --scale worker=2
-```
 
 ## Kubernetes 部署
 

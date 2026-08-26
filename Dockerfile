@@ -6,7 +6,8 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /srv/upload-service
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md alembic.ini ./
+COPY alembic ./alembic
 COPY app ./app
 COPY upload_service ./upload_service
 COPY sdk ./sdk

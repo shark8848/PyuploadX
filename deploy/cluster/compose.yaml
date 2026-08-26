@@ -1,3 +1,13 @@
-# 集群部署（docs 25）：docker compose -f deploy/cluster/compose.yaml up -d --build --scale api=3 --scale worker=2
+# 集群部署（docs 25）：自带第三方组件 + 多副本应用服务。
+# docker compose -f deploy/cluster/compose.yaml up -d --build --scale api=3 --scale worker=2
 include:
   - ../../docker-compose.yml
+  - ../../deploy/infra/compose.yaml
+
+services:
+  upload-api:
+    environment:
+      UPLOAD_CLUSTER__ENABLED: "true"
+  worker:
+    environment:
+      UPLOAD_CLUSTER__ENABLED: "true"
