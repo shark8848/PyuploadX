@@ -256,14 +256,6 @@ docs/       设计文档、运维手册与架构图（SVG 源 / PNG 生成）
 - PostgreSQL/Redis 不暴露公网（Compose 仅内部网络，K8s 无外部 Service）。
 - 对象 Key 与目录相对路径均做防路径逃逸校验；上传会话校验所有权，Complete/Abort 幂等。
 
-## 文档图形（§35）
-
-```bash
-make diagrams          # 渲染 docs/assets/svg -> docs/assets/png
-make diagrams-force    # 强制重新渲染
-make docs-check        # 校验 PNG 未过期 + Markdown 引用 + SVG 安全（CI 门禁）
-```
-
 ## 许可证
 
 MIT
