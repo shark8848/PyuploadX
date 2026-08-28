@@ -6,7 +6,7 @@ import json
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, File, Form, Header, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import IdentityDep, SessionDep, StateDep
@@ -82,20 +82,31 @@ async def download_link(
     db: SessionDep,
     file_id: uuid.UUID,
     token: str,
+    range_header: Annotated[str | None, Header(alias="Range")] = None,
 ) -> StreamingResponse:
     if not state.file_service.verify_link_token(file_id, token):
         from app.core.errors import ApiError
 
         raise ApiError("INVALID_DOWNLOAD_LINK", "Invalid or missing download link token.", status_code=403)
-    file_obj, stream = await state.file_service.download_for_link(db, file_id)
+    file_obj, stream, byte_range = await state.file_service.download_for_link(
+        db, file_id, range_header=range_header
+    )
 
     async def iterator():
         async for chunk in stream:
             yield chunk
 
-    headers = {"X-Request-ID": "link"}
+    headers = {"X-Request-ID": "link", "Accept-Ranges": "bytes"}
     if file_obj.etag:
         headers["ETag"] = file_obj.etag
+    if byte_range is not None:
+        headers["Content-Range"] = f"bytes {byte_range.start}-{byte_range.end}/{file_obj.size_bytes}"
+        return StreamingResponse(
+            iterator(),
+            status_code=206,
+            media_type=file_obj.content_type or "application/octet-stream",
+            headers=headers,
+        )
     return StreamingResponse(
         iterator(),
         media_type=file_obj.content_type or "application/octet-stream",
@@ -122,16 +133,27 @@ async def download_file(
     db: SessionDep,
     identity: IdentityDep,
     file_id: uuid.UUID,
+    range_header: Annotated[str | None, Header(alias="Range")] = None,
 ) -> StreamingResponse:
-    file_obj, stream = await state.file_service.download(db, identity, file_id)
+    file_obj, stream, byte_range = await state.file_service.download(
+        db, identity, file_id, range_header=range_header
+    )
 
     async def iterator():
         async for chunk in stream:
             yield chunk
 
-    headers = {"X-Request-ID": "stream"}
+    headers = {"X-Request-ID": "stream", "Accept-Ranges": "bytes"}
     if file_obj.etag:
         headers["ETag"] = file_obj.etag
+    if byte_range is not None:
+        headers["Content-Range"] = f"bytes {byte_range.start}-{byte_range.end}/{file_obj.size_bytes}"
+        return StreamingResponse(
+            iterator(),
+            status_code=206,
+            media_type=file_obj.content_type or "application/octet-stream",
+            headers=headers,
+        )
     return StreamingResponse(
         iterator(),
         media_type=file_obj.content_type or "application/octet-stream",

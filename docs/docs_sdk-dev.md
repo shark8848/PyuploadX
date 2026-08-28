@@ -8,7 +8,7 @@
 
 ```bash
 pip install pyuploadx          # 官方 PyPI（Python ≥ 3.11，第三方依赖仅 httpx）
-pip install dist/pyuploadx-0.7.0-py3-none-any.whl   # 或仓库直装（历史版本清单见 dist/README.md）
+pip install dist/pyuploadx-0.8.0-py3-none-any.whl   # 或仓库直装（历史版本清单见 dist/README.md）
 ```
 
 ## 2. 客户端初始化
@@ -46,8 +46,8 @@ client.on_progress(lambda uploaded, total: print(f"{uploaded}/{total}"))  # 上�
 | `get_upload(upload_id)` | `UploadSessionInfo` | 分片会话最新状态 |
 | `get_directory_job(job_id)` | `DirectoryJobInfo` | 目录任务最新状态与统计 |
 | `get_download_url(file_id, expires_seconds=None)` | `str \| None` | 预签名下载 URL（Local 后端为 `None`） |
-| `download(file_id, destination, *, url=None, progress=None)` | `Path` | 下载到本地：默认代理流式下载；传入 `url=` 直接从该 URL（预签名/永久链接）下载 |
-| `download_from_url(url, destination, *, progress=None)` | `Path` | 直接流式下载任意 HTTP(S) URL（预签名/永久链接） |
+| `download(file_id, destination, *, url=None, progress=None, concurrency=1)` | `Path` | 下载到本地：默认代理流式下载；传入 `url=` 直接下载 URL；`concurrency>1` 并发 Range 分片（不支持时自动回退单流） |
+| `download_from_url(url, destination, *, progress=None, concurrency=1)` | `Path` | 直接流式下载任意 HTTP(S) URL（预签名/永久链接），支持并发分片 |
 | `delete(file_id)` | `None` | 删除（幂等） |
 | `get_lifecycle(file_id)` | `dict` | 生效生命周期 |
 | `update_lifecycle(file_id, lifecycle)` | `dict` | 更新生命周期 |
@@ -93,6 +93,7 @@ client.update_lifecycle(info.id, {"mode": "ttl", "ttl_seconds": 3600})
 client.download(info.id, "/tmp/README.md")          # 代理流式；progress(written, total) 可选
 client.download(info.id, "/tmp/README.md", url=url)  # 直接使用预签名/永久链接 URL
 client.download_from_url(url, "/tmp/README.md")     # 等价，无需 file_id
+client.download(info.id, "/tmp/big.bin", concurrency=8)  # 超大文件：并发 Range 分片
 client.delete(info.id)
 ```
 
@@ -141,6 +142,24 @@ with httpx.stream("GET", url, follow_redirects=True) as resp:
 - `download` / `download_from_url` 均逐块写盘，不整体缓冲；`progress(written, total)` 可选回调。
 - 需要预签名 URL 时先调 `get_download_url(file_id, expires_seconds=...)`（或上传响应
   `download_url` / 永久链接 API），再交给 `url=` / `download_from_url` 下载，无需其它判断。
+
+### 超大文件多线程下载（HTTP Range）
+
+`download()` / `download_from_url()` 支持 `concurrency=N`（默认 1）并行分片下载：
+
+```python
+# 代理下载：服务端支持 Range（206）时并发分片，不支持时自动回退单流
+client.download(info.id, "/tmp/big.bin", concurrency=8,
+                progress=lambda done, total: print(f"{done}/{total}"))
+
+# URL 下载（预签名/永久链接）同样支持并发
+client.download_from_url(url, "/tmp/big.bin", concurrency=8)
+```
+
+- SDK 先发 `Range: bytes=0-0` 探测；服务端返回 206 才启用并发，否则自动单流下载。
+- 每个线程下载一个字节区间并写入对应偏移（不整体缓冲）；进度按累计字节回调。
+- 服务端 `GET /v1/files/{id}/download` 与 `download-link` 均支持 Range（206 + `Content-Range`，
+  越界/非法返回 416 `RANGE_NOT_SATISFIABLE`）；S3/MinIO 预签名 URL 原生支持 Range。
 
 ## 7. 目录上传
 
@@ -211,7 +230,7 @@ python -m pytest tests/unit tests/integration -q      # 全量（S3 套件需 UP
 ## 11. 永久下载链接（服务端能力）
 
 永久链接的**创建**未封装为 SDK 方法（保持服务端 API 直调，未新增创建接口）；
-消费侧由 v0.7.0 提供的 `download_from_url()` 与 `download(..., url=...)` 支持：
+消费侧由 v0.8.0 提供的 `download_from_url()` 与 `download(..., url=...)`（含 `concurrency` 并发分片）支持：
 
 ```bash
 # 创建永久链接（需鉴权）→ 返回永不过期的下载 URL

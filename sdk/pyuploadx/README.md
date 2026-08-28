@@ -68,6 +68,7 @@ client.download(
 )  # 代理流式下载
 client.download(info.id, "/tmp/README.md", url=url)  # 直接用预签名/永久链接 URL 下载
 client.download_from_url(url, "/tmp/README.md")      # 等价，无需 file_id
+client.download(info.id, "/tmp/big.bin", concurrency=8)  # 超大文件：并发 Range 分片（服务端不支持时自动回退单流）
 client.delete(info.id)                          # 删除（幂等）
 ```
 

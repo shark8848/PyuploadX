@@ -16,6 +16,7 @@ from app.core.errors import (
     ObjectAlreadyExistsError,
     StorageCapabilityNotSupportedError,
 )
+from app.core.ranges import ByteRange, parse_byte_range
 from app.db import repositories
 from app.db.models import FileObject, FileStatus, LifecycleStatus
 from app.directory_upload.paths import normalize_relative_path
@@ -176,10 +177,20 @@ class FileService:
         session: AsyncSession,
         identity: Identity,
         file_id: uuid.UUID,
-    ) -> Any:
+        *,
+        range_header: str | None = None,
+    ) -> tuple[Any, Any, ByteRange | None]:
         file_obj = await self.get(session, identity, file_id)
-        stream = await self.storage.get_object(bucket=file_obj.bucket, object_key=file_obj.object_key)
-        return file_obj, stream
+        byte_range = parse_byte_range(range_header, file_obj.size_bytes) if range_header else None
+        offset = byte_range.start if byte_range else 0
+        length = byte_range.length if byte_range else None
+        stream = await self.storage.get_object(
+            bucket=file_obj.bucket,
+            object_key=file_obj.object_key,
+            offset=offset,
+            length=length,
+        )
+        return file_obj, stream, byte_range
 
     async def create_permanent_link(
         self,
@@ -217,13 +228,23 @@ class FileService:
         self,
         session: AsyncSession,
         file_id: uuid.UUID,
-    ) -> Any:
+        *,
+        range_header: str | None = None,
+    ) -> tuple[Any, Any, ByteRange | None]:
         """Stream a file through a verified permanent link (no tenant scope)."""
         file_obj = await repositories.file_repository.get_file(session, file_id)
         if file_obj is None or file_obj.status == FileStatus.deleted:
             raise ApiError("FILE_NOT_FOUND", f"File {file_id} does not exist.", status_code=404)
-        stream = await self.storage.get_object(bucket=file_obj.bucket, object_key=file_obj.object_key)
-        return file_obj, stream
+        byte_range = parse_byte_range(range_header, file_obj.size_bytes) if range_header else None
+        offset = byte_range.start if byte_range else 0
+        length = byte_range.length if byte_range else None
+        stream = await self.storage.get_object(
+            bucket=file_obj.bucket,
+            object_key=file_obj.object_key,
+            offset=offset,
+            length=length,
+        )
+        return file_obj, stream, byte_range
 
     async def delete(
         self,

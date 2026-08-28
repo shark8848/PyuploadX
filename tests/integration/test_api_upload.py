@@ -97,3 +97,58 @@ def test_lifecycle_flow(client, auth_headers):
     assert blocked.status_code == 409
     released = client.delete(f"/v1/files/{file_id}/legal-hold", headers=auth_headers)
     assert released.status_code == 200
+
+
+def test_range_download(client, auth_headers):
+    body = b"0123456789"
+    response = client.post(
+        "/v1/files/upload",
+        headers=auth_headers,
+        data={"bucket": "app-default", "object_key": "range/data.bin"},
+        files={"file": ("data.bin", io.BytesIO(body), "application/octet-stream")},
+    )
+    assert response.status_code == 200, response.text
+    file_id = response.json()["id"]
+
+    full = client.get(f"/v1/files/{file_id}/download", headers=auth_headers)
+    assert full.status_code == 200
+    assert full.headers["accept-ranges"] == "bytes"
+    assert full.content == body
+
+    part = client.get(
+        f"/v1/files/{file_id}/download",
+        headers={**auth_headers, "Range": "bytes=2-5"},
+    )
+    assert part.status_code == 206
+    assert part.content == b"2345"
+    assert part.headers["content-range"] == "bytes 2-5/10"
+    assert part.headers["accept-ranges"] == "bytes"
+
+    tail = client.get(
+        f"/v1/files/{file_id}/download",
+        headers={**auth_headers, "Range": "bytes=7-"},
+    )
+    assert tail.status_code == 206
+    assert tail.content == b"789"
+
+    suffix = client.get(
+        f"/v1/files/{file_id}/download",
+        headers={**auth_headers, "Range": "bytes=-3"},
+    )
+    assert suffix.status_code == 206
+    assert suffix.content == b"789"
+
+    unsatisfiable = client.get(
+        f"/v1/files/{file_id}/download",
+        headers={**auth_headers, "Range": "bytes=10-"},
+    )
+    assert unsatisfiable.status_code == 416
+    assert unsatisfiable.json()["error"]["code"] == "RANGE_NOT_SATISFIABLE"
+
+    link_resp = client.post(f"/v1/files/{file_id}/permanent-link", headers=auth_headers)
+    assert link_resp.status_code == 200, link_resp.text
+    link = link_resp.json()["url"]
+    linked = client.get(link, headers={"Range": "bytes=0-4"})
+    assert linked.status_code == 206
+    assert linked.content == b"01234"
+    assert linked.headers["content-range"] == "bytes 0-4/10"

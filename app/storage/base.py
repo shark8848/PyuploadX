@@ -62,6 +62,9 @@ class StorageAdapter(Protocol):
         self,
         bucket: str,
         object_key: str,
+        *,
+        offset: int = 0,
+        length: int | None = None,
     ) -> ObjectStream: ...
 
     async def delete_object(

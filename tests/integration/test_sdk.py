@@ -103,7 +103,7 @@ def test_sdk_large_file_multipart(app, auth_headers, tmp_path):
         assert fetched_session.status == "initiated"
 
 
-def test_sdk_download_from_url(app, auth_headers, tmp_path, monkeypatch):
+def test_sdk_download_from_url(app, auth_headers, tmp_path):
     source = tmp_path / "demo.bin"
     source.write_bytes(b"url-download-body")
     with _make_client(app, auth_headers) as client:
@@ -115,17 +115,6 @@ def test_sdk_download_from_url(app, auth_headers, tmp_path, monkeypatch):
                 f"http://testserver/v1/files/{info.id}/permanent-link",
                 headers=auth_headers,
             ).json()["url"]
-
-        import pyuploadx.client as client_mod
-
-        original = client_mod._stream_to_disk
-        monkeypatch.setattr(
-            client_mod,
-            "_stream_to_disk",
-            lambda url, dest, progress=None, transport=None: original(
-                url, dest, progress=progress, transport=SyncASGITransport(app)
-            ),
-        )
 
         dest = tmp_path / "from-url.bin"
         progress: list[tuple[int, int]] = []
@@ -140,6 +129,38 @@ def test_sdk_download_from_url(app, auth_headers, tmp_path, monkeypatch):
         saved2 = client.download(info.id, str(dest2), url=link)   # download(url=...) 等价
         assert saved2 == dest2
         assert dest2.read_bytes() == source.read_bytes()
+
+
+def test_sdk_download_parallel(app, auth_headers, tmp_path):
+    body = bytes(range(256)) * 64  # 16 KiB, exercises multiple Range requests
+    source = tmp_path / "big.bin"
+    source.write_bytes(body)
+    with _make_client(app, auth_headers) as client:
+        info = client.upload_file(str(source), bucket="app-default")
+
+        dest = tmp_path / "parallel.bin"
+        progress: list[tuple[int, int]] = []
+        saved = client.download(
+            info.id,
+            str(dest),
+            concurrency=4,
+            progress=lambda w, t: progress.append((w, t)),
+        )
+        assert saved == dest
+        assert dest.read_bytes() == body
+        assert progress[-1] == (len(body), len(body))
+
+        import httpx as _httpx
+
+        with _httpx.Client(transport=SyncASGITransport(app)) as raw:
+            link = raw.post(
+                f"http://testserver/v1/files/{info.id}/permanent-link",
+                headers=auth_headers,
+            ).json()["url"]
+        dest2 = tmp_path / "parallel-url.bin"
+        saved2 = client.download_from_url(link, str(dest2), concurrency=4)
+        assert saved2 == dest2
+        assert dest2.read_bytes() == body
 
 
 def test_sdk_directory_upload(app, auth_headers, tmp_path):

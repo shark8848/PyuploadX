@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -51,14 +52,100 @@ def _stream_response(response: httpx.Response, dest: Path, progress: Any = None)
     return dest
 
 
+def _content_range_total(header: str) -> int:
+    """Parse total size from a 'bytes start-end/total' Content-Range header."""
+    return int(header.rsplit("/", 1)[1])
+
+
+def _stream_parallel(
+    client: httpx.Client,
+    url: str,
+    dest: Path,
+    *,
+    concurrency: int,
+    progress: Any = None,
+) -> Path:
+    """Download url with concurrency parallel Range requests (RFC 7233).
+
+    Probes with 'Range: bytes=0-0'; when the server answers 206 the download
+    is split into concurrency byte ranges written at their offsets. Falls back
+    to a single sequential stream when the server does not support ranges.
+    """
+    probe = client.get(url, headers={"Range": "bytes=0-0"})
+    if probe.status_code != 206:
+        if probe.status_code >= 400:
+            raise UploadClientError(f"download failed with status {probe.status_code}")
+        with client.stream("GET", url) as response:
+            if response.status_code >= 400:
+                raise UploadClientError(f"download failed with status {response.status_code}")
+            return _stream_response(response, dest, progress=progress)
+    total = _content_range_total(probe.headers.get("content-range") or "")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with dest.open("wb") as handle:
+        handle.truncate(total)
+    if total == 0:
+        return dest
+    concurrency = min(concurrency, total)
+    lock = threading.Lock()
+    written = 0
+    errors: list[BaseException] = []
+    ranges: list[tuple[int, int]] = []
+    step = total // concurrency
+    start = 0
+    for index in range(concurrency):
+        end = total - 1 if index == concurrency - 1 else start + step - 1
+        ranges.append((start, end))
+        start = end + 1
+
+    def worker(range_start: int, range_end: int) -> None:
+        nonlocal written
+        try:
+            with client.stream(
+                "GET", url, headers={"Range": f"bytes={range_start}-{range_end}"}
+            ) as response:
+                if response.status_code >= 400:
+                    raise UploadClientError(
+                        f"download failed with status {response.status_code}"
+                    )
+                if response.status_code != 206:
+                    raise UploadClientError(
+                        "server ignored range request during parallel download"
+                    )
+                with dest.open("rb+") as handle:
+                    handle.seek(range_start)
+                    for chunk in response.iter_bytes():
+                        handle.write(chunk)
+                        with lock:
+                            written += len(chunk)
+                            if progress is not None:
+                                progress(written, total)
+        except BaseException as exc:  # surfaced after threads join
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=worker, args=(range_start, range_end))
+        for range_start, range_end in ranges
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    if errors:
+        raise UploadClientError(f"parallel download failed: {errors[0]}") from errors[0]
+    return dest
+
+
 def _stream_to_disk(
     url: str,
     dest: Path,
     progress: Any = None,
     transport: httpx.BaseTransport | None = None,
+    concurrency: int = 1,
 ) -> Path:
     client = httpx.Client(follow_redirects=True, timeout=60.0, transport=transport)
     try:
+        if concurrency > 1:
+            return _stream_parallel(client, url, dest, concurrency=concurrency, progress=progress)
         with client.stream("GET", url) as response:
             if response.status_code >= 400:
                 raise UploadClientError(f"download failed with status {response.status_code}")
@@ -85,6 +172,7 @@ class UploadClient:
             headers["Authorization"] = f"Bearer {bearer_token}"
         if api_key:
             headers["X-API-Key"] = api_key
+        self._transport = transport
         self._client = httpx.Client(
             base_url=base_url.rstrip("/"),
             headers=headers,
@@ -374,17 +462,30 @@ class UploadClient:
         *,
         url: str | None = None,
         progress: Any = None,
+        concurrency: int = 1,
     ) -> Path:
         """Download a file to disk, streaming in chunks (no full buffering).
 
         Default streams through the API proxy (GET /v1/files/{id}/download).
         Pass url= to stream from an HTTP(S) URL directly (presigned or
         permanent link) without any presign lookup or backend probing.
+        concurrency>1 splits the download into parallel Range requests for
+        large files (falls back to a single stream when unsupported).
         progress(bytes_written, total_bytes) is invoked per chunk when provided.
         """
         dest = Path(destination).expanduser()
         if url is not None:
-            return _stream_to_disk(url, dest, progress=progress)
+            return _stream_to_disk(
+                url, dest, progress=progress, transport=self._transport, concurrency=concurrency
+            )
+        if concurrency > 1:
+            return _stream_parallel(
+                self._client,
+                f"/v1/files/{file_id}/download",
+                dest,
+                concurrency=concurrency,
+                progress=progress,
+            )
         with self._client.stream("GET", f"/v1/files/{file_id}/download") as response:
             self._raise_for_status(response)
             return _stream_response(response, dest, progress=progress)
@@ -395,14 +496,18 @@ class UploadClient:
         destination: str,
         *,
         progress: Any = None,
+        concurrency: int = 1,
     ) -> Path:
         """Stream any HTTP(S) URL (presigned or permanent link) to disk.
 
         Equivalent to download(file_id, url=url) when the URL is already known;
-        no file_id or backend capability lookup is involved.
+        no file_id or backend capability lookup is involved. concurrency>1 uses
+        parallel Range requests for large files when the server supports them.
         """
         dest = Path(destination).expanduser()
-        return _stream_to_disk(url, dest, progress=progress)
+        return _stream_to_disk(
+            url, dest, progress=progress, transport=self._transport, concurrency=concurrency
+        )
 
     def delete(self, file_id: str) -> None:
         response = self._request("DELETE", f"/v1/files/{file_id}")

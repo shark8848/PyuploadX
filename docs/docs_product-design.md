@@ -1295,6 +1295,10 @@ DELETE /v1/files/{file_id}
   `{"url": "<base>/v1/files/{file_id}/download-link?token=<hmac>", "permanent": true}`。
 - `GET /v1/files/{file_id}/download-link?token=<hmac>` **无需鉴权**，校验 HMAC 后流式返回文件；
   适用于 Local/S3/MinIO 全部存储后端。
+- 两个下载接口（`GET /v1/files/{file_id}/download`、`GET /v1/files/{file_id}/download-link`）
+  均支持 HTTP Range（RFC 7233）：响应带 `Accept-Ranges: bytes`，单区间请求满足时返回 206 +
+  `Content-Range: bytes start-end/total`，越界/非法区间返回 416 `RANGE_NOT_SATISFIABLE`；
+  供 SDK 并发分片下载超大文件使用。
 - 链接永不过期，但文件被删除后失效；吊销方式为轮换签名密钥或删除文件。
 - 签名密钥来自环境变量 `UPLOAD_PERMANENT_LINK_SECRET`（HMAC-SHA256，绑定文件 ID）；
   未配置时创建链接返回 `PERMANENT_LINK_NOT_CONFIGURED`（501）。
@@ -1433,6 +1437,7 @@ DIRECTORY_HAS_FAILED_ENTRIES
 INVALID_LIFECYCLE_POLICY
 TTL_OUT_OF_RANGE
 FILE_UNDER_LEGAL_HOLD
+RANGE_NOT_SATISFIABLE
 STORAGE_CAPABILITY_NOT_SUPPORTED
 STORAGE_UNAVAILABLE
 DATABASE_UNAVAILABLE
@@ -1572,9 +1577,10 @@ pyuploadx/
 - `upload_directory()` → `DirectoryJobInfo`（`status`/`uploaded_files`/`uploaded_bytes`/`failed_files`/`skipped_files`；SDK 逐条上报条目结果，服务端聚合统计）。
 - `get_file(file_id)` → 文件最新 `FileInfo`；`get_upload(upload_id)` → 分片会话最新状态；`get_directory_job(job_id)` → 目录任务最新状态。
 - `get_lifecycle(file_id)` / `update_lifecycle(...)` / `extend_lifecycle(...)` / `set_legal_hold(...)` → 生命周期查询与变更。
-- `download(file_id, dest, *, url=None, progress=None)` → 默认代理流式下载；传入 `url=` 直接从
-  预签名/永久链接 URL 下载（无需预签名探测或后端判断）。`download_from_url(url, dest, *, progress=None)`
-  等价且无需 `file_id`。两者均逐块写盘不整体缓冲，`progress(written, total)` 可选回调；
+- `download(file_id, dest, *, url=None, progress=None, concurrency=1)` → 默认代理流式下载；传入
+  `url=` 直接从预签名/永久链接 URL 下载（无需预签名探测或后端判断）。`download_from_url(url, dest, *,
+  progress=None, concurrency=1)` 等价且无需 `file_id`。`concurrency>1` 时按 HTTP Range 并发分片
+  （服务端不支持时自动回退单流）；两者均逐块写盘不整体缓冲，`progress(written, total)` 可选回调；
   `delete(file_id)` 幂等删除。
 
 ```python

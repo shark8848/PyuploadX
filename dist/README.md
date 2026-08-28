@@ -13,6 +13,7 @@
 | `0.5.0` | `v0.5.0` | `dist/pyuploadx-0.5.0-py3-none-any.whl` | 上传支持 `directory` 参数自动拼 object_key（示例：指定目录上传 + URL 下载） |
 | `0.6.0` | `v0.6.0` | `dist/pyuploadx-0.6.0-py3-none-any.whl` | download URL 模式（`use_url` 自动选择/降级）与 `download_from_url` |
 | `0.7.0` | `v0.7.0` | `dist/pyuploadx-0.7.0-py3-none-any.whl` | 简化 download：默认代理流式；`url=` 或 `download_from_url` 直接下载 URL（移除 `use_url`/`expires_seconds` 自动逻辑） |
+| `0.8.0` | `v0.8.0` | `dist/pyuploadx-0.8.0-py3-none-any.whl` | 多线程下载：`concurrency=N` 并发 Range 分片（服务端不支持时自动回退单流） |
 
 ## pyuploadx-server（服务端，构建于仓库根）
 
@@ -21,6 +22,7 @@
 | `0.1.0` | `server-v0.1.0` | `dist/pyuploadx_server-0.1.0-py3-none-any.whl` | 拆分后服务端独立包（app/ + upload_service/） |
 | `0.1.1` | `server-v0.1.1` | `dist/pyuploadx_server-0.1.1-py3-none-any.whl` | 上传/完成响应附带临时预签名 `download_url`/`expires_in` |
 | `0.1.2` | `server-v0.1.2` | `dist/pyuploadx_server-0.1.2-py3-none-any.whl` | 永久下载链接：`POST /v1/files/{id}/permanent-link` + 无鉴权 `download-link`（HMAC） |
+| `0.1.3` | `server-v0.1.3` | `dist/pyuploadx_server-0.1.3-py3-none-any.whl` | 下载接口支持 HTTP Range（206/`Content-Range`/416），供 SDK 并发分片下载 |
 
 ## 安装
 

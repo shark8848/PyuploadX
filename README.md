@@ -217,6 +217,7 @@ job = client.get_directory_job(job.id)           # 目录任务状态（Director
 lifecycle = client.get_lifecycle(info.id)
 url = client.get_download_url(info.id, expires_seconds=3600)   # 过期后重新获取 URL
 client.download(info.id, "/tmp/downloaded.bin")                # 代理流式下载（或 url= 传 URL 下载）
+client.download(info.id, "/tmp/big.bin", concurrency=8)  # 超大文件：并发 Range 分片
 client.download_from_url(url, "/tmp/downloaded.bin")           # 直接下载 URL（预签名/永久链接）
 ```
 

@@ -116,15 +116,28 @@ class S3StorageAdapter:
             content_type=content_type,
         )
 
-    async def get_object(self, bucket: str, object_key: str) -> ObjectStream:
+    async def get_object(
+        self,
+        bucket: str,
+        object_key: str,
+        *,
+        offset: int = 0,
+        length: int | None = None,
+    ) -> ObjectStream:
+        params: dict[str, Any] = {"Bucket": bucket, "Key": object_key}
+        if offset or length is not None:
+            end = "" if length is None else offset + length - 1
+            params["Range"] = f"bytes={offset}-{end}"
         try:
-            response = await self._run(
-                self._internal.get_object, Bucket=bucket, Key=object_key
-            )
+            response = await self._run(self._internal.get_object, **params)
         except (BotoCoreError, ClientError) as exc:
             self._raise(exc)
         body = response["Body"]
-        size = int(response.get("ContentLength") or 0)
+        content_range = response.get("ContentRange")
+        if content_range:
+            size = int(content_range.rsplit("/", 1)[1])
+        else:
+            size = int(response.get("ContentLength") or 0)
 
         async def chunks():
             while True:

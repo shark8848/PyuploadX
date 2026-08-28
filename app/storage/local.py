@@ -106,25 +106,39 @@ class LocalStorageAdapter:
             content_type=content_type,
         )
 
-    async def get_object(self, bucket: str, object_key: str) -> ObjectStream:
+    async def get_object(
+        self,
+        bucket: str,
+        object_key: str,
+        *,
+        offset: int = 0,
+        length: int | None = None,
+    ) -> ObjectStream:
         path = self._object_path(bucket, object_key)
         if not path.exists():
             from app.core.errors import ApiError
 
             raise ApiError("FILE_NOT_FOUND", f"Object {bucket}/{object_key} does not exist.", status_code=404)
+        size = path.stat().st_size
 
         async def chunks() -> AsyncIterator[bytes]:
+            remaining = length
             async with aiofiles.open(path, "rb") as file:
-                while True:
-                    chunk = await file.read(1024 * 1024)
+                if offset:
+                    await file.seek(offset)
+                while remaining is None or remaining > 0:
+                    read_size = 1024 * 1024 if remaining is None else min(1024 * 1024, remaining)
+                    chunk = await file.read(read_size)
                     if not chunk:
                         break
+                    if remaining is not None:
+                        remaining -= len(chunk)
                     yield chunk
 
         return ObjectStream(
             bucket=bucket,
             object_key=object_key,
-            size_bytes=path.stat().st_size,
+            size_bytes=size,
             content_type=None,
             chunks=chunks(),
         )
