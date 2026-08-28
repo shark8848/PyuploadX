@@ -1552,6 +1552,8 @@ pyuploadx/
 上传接口同步返回结果对象；服务端状态可通过以下查询接口随时获取（对应 §16 REST API）：
 
 - `upload_file()` / `upload_large_file()` → `FileInfo`（`id`/`status`/`etag`/`size_bytes`/`lifecycle_mode`/`expires_at`/`legal_hold`）。
+- `upload_file()` / `upload_large_file()` 支持 `directory` 参数（如 `reports/2026`），自动拼接
+  `object_key = <directory>/<文件名>`（显式 `object_key` 优先）。
 - 上传响应附带临时 `download_url`/`expires_in`（预签名 GET；Local 后端为 `None`）；
   `get_download_url(file_id, expires_seconds=None)` 可随时重新获取（Local 返回 `None`）。
 - `create_upload()` → `UploadSessionInfo`（分片会话：`id`/`status`/`total_parts`/`completed_file_id`/`effective_lifecycle`）。

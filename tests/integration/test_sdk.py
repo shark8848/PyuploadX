@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import httpx
 
+from pyuploadx.exceptions import ValidationError
+
 
 class SyncASGITransport(httpx.BaseTransport):
     """Bridge httpx 0.28 async-only ASGITransport to the sync client for tests."""
@@ -53,6 +55,13 @@ def test_sdk_upload_file(app, auth_headers, tmp_path):
         assert info.download_url is None          # Local backend: no presigned_get
         assert info.expires_in is None
         assert client.get_download_url(info.id) is None
+        with_dir = client.upload_file(str(source), bucket="app-default", directory="reports/2026")
+        assert with_dir.object_key == "reports/2026/report.pdf"
+        try:
+            client.upload_file(str(source), bucket="app-default", directory="../evil")
+            raise AssertionError("expected ValidationError")
+        except ValidationError:
+            pass
         fetched = client.get_file(info.id)
         assert fetched.id == info.id
 
@@ -71,6 +80,14 @@ def test_sdk_large_file_multipart(app, auth_headers, tmp_path):
         assert info.size_bytes == 10
         assert info.object_key == "models/model.bin"
         assert info.download_url is None
+        info2 = client.upload_large_file(
+            str(source),
+            bucket="app-default",
+            directory="models/backup",
+            part_size=5,
+            concurrency=2,
+        )
+        assert info2.object_key == "models/backup/model.bin"
         session = client.create_upload(
             bucket="app-default",
             object_key="models/session-probe.bin",

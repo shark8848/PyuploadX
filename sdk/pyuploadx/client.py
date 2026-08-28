@@ -17,8 +17,26 @@ from pyuploadx.fingerprint import fast_fingerprint
 from pyuploadx.manifest import manifest_hash_from_entries
 from pyuploadx.models import DirectoryJobInfo, FileInfo, UploadSessionInfo
 from pyuploadx.multipart import upload_all_parts
+from pyuploadx.paths import normalize_relative_path
 from pyuploadx.retry import retry
 from pyuploadx.state import StateStore
+
+
+def _resolve_object_key(
+    object_key: str | None,
+    directory: str | None,
+    filename: str,
+) -> str:
+    """Compose the storage object key.
+
+    Explicit object_key wins; otherwise directory is normalized and joined with
+    the source filename (e.g. directory="reports/2026" -> "reports/2026/README.md").
+    """
+    if object_key:
+        return object_key
+    if directory:
+        return f"{normalize_relative_path(directory)}/{filename}"
+    return filename
 
 
 class UploadClient:
@@ -82,13 +100,14 @@ class UploadClient:
         *,
         bucket: str,
         object_key: str | None = None,
+        directory: str | None = None,
         lifecycle: Any = None,
         metadata: dict[str, Any] | None = None,
     ) -> FileInfo:
         path = Path(file_path).expanduser()
         if not path.is_file():
             raise UploadClientError(f"file not found: {path}")
-        resolved_key = object_key or path.name
+        resolved_key = _resolve_object_key(object_key, directory, path.name)
         fingerprint = fast_fingerprint(path)
         import json
 
@@ -112,6 +131,7 @@ class UploadClient:
         *,
         bucket: str,
         object_key: str | None = None,
+        directory: str | None = None,
         part_size: int = 8 * 1024 * 1024,
         concurrency: int = 4,
         resume: bool = True,
@@ -122,7 +142,7 @@ class UploadClient:
             raise UploadClientError(f"file not found: {path}")
         total_size = path.stat().st_size
         fingerprint = fast_fingerprint(path)
-        resolved_key = object_key or path.name
+        resolved_key = _resolve_object_key(object_key, directory, path.name)
         lifecycle_payload = lifecycle.to_dict() if lifecycle is not None else None
 
         session = self.create_upload(

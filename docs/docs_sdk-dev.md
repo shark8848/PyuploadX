@@ -38,8 +38,8 @@ client.on_progress(lambda uploaded, total: print(f"{uploaded}/{total}"))  # 上�
 
 | 方法 | 返回 | 说明 |
 | --- | --- | --- |
-| `upload_file(path, *, bucket, object_key=None, lifecycle=None, metadata=None)` | `FileInfo` | 小文件 Proxy 上传 |
-| `upload_large_file(path, *, bucket, object_key=None, part_size=8MiB, concurrency=4, resume=True, lifecycle=None)` | `FileInfo` | 大文件 Multipart + 断点续传 |
+| `upload_file(path, *, bucket, object_key=None, directory=None, lifecycle=None, metadata=None)` | `FileInfo` | 小文件 Proxy 上传（`directory` 自动拼目录） |
+| `upload_large_file(path, *, bucket, object_key=None, directory=None, part_size=8MiB, concurrency=4, resume=True, lifecycle=None)` | `FileInfo` | 大文件 Multipart + 断点续传（`directory` 自动拼目录） |
 | `create_upload(*, bucket, object_key, total_size, part_size, file_fingerprint=None, expected_sha256=None, lifecycle=None)` | `UploadSessionInfo` | 手动创建分片会话 |
 | `upload_directory(path, *, bucket, destination_prefix="", recursive=True, resume=True, file_concurrency=8, part_concurrency=4, include=None, exclude=None, symlink_policy="ignore", conflict_policy="reject", lifecycle=None)` | `DirectoryJobInfo` | 目录上传 |
 | `get_file(file_id)` | `FileInfo` | 文件最新状态 |
@@ -97,7 +97,40 @@ client.delete(info.id)
 - Local 存储不支持预签名（`presigned_get=False`）：上传响应 `download_url=None`、
   `get_download_url()` 返回 `None`，此时请使用 `download()` 走服务端代理下载。
 
-## 6. 目录上传
+## 6. 指定目录上传、返回 URL 与 URL 下载
+
+```python
+import httpx
+
+# 1) 指定目录上传：object_key = <directory>/<文件名>（object_key 显式传入时优先）
+info = client.upload_file(
+    "./report.pdf",
+    bucket="app-default",
+    directory="reports/2026",          # => object_key: reports/2026/report.pdf
+)
+large = client.upload_large_file(
+    "./model.bin",
+    bucket="app-default",
+    directory="models/backup",         # => object_key: models/backup/model.bin
+)
+
+# 2) 上传响应返回临时预签名下载 URL（expires_in 秒；Local 后端为 None）
+print(info.download_url, info.expires_in)
+url = client.get_download_url(info.id, expires_seconds=3600)   # 过期后重新获取
+
+# 3) 使用 URL 下载：httpx 流式写盘，不占内存
+with httpx.stream("GET", url, follow_redirects=True) as resp:
+    resp.raise_for_status()
+    with open("/tmp/report.pdf", "wb") as f:
+        for chunk in resp.iter_bytes():
+            f.write(chunk)
+```
+
+- `directory` 经 `normalize_relative_path` 归一化：去首尾 `/`、`\` 转 `/`、拒绝 `.`/`..`/绝对路径/盘符路径。
+- `object_key` 与 `directory` 同时给出时以 `object_key` 为准。
+
+## 7. 目录上传
+
 
 ```python
 job = client.upload_directory(
@@ -119,7 +152,7 @@ print(job.status, job.uploaded_files, job.failed_files, job.uploaded_bytes)
 - SDK 逐条上报条目结果（uploaded/failed），服务端 `aggregate_progress` 聚合统计。
 - 目录相对路径做防路径逃逸校验；Manifest 哈希由服务端核对。
 
-## 7. 断点续传与本地状态
+## 8. 断点续传与本地状态
 
 - 状态保存在 `state_dir`（默认 `~/.pyuploadx/uploads`）：
   - `uploads/{upload_id}.json` — 大文件分片进度；
@@ -129,7 +162,7 @@ print(job.status, job.uploaded_files, job.failed_files, job.uploaded_bytes)
 - 页面/进程重启后本地状态丢失时，重新上传即可；服务端会话可通过
   `POST /v1/uploads/{id}/resume` 续传（SDK 自动处理）。
 
-## 8. 异常与错误码
+## 9. 异常与错误码
 
 所有异常继承 `pyuploadx.UploadClientError`，并带 `status_code` 属性。服务端错误码
 （`{"error": {"code": ...}}`）与 SDK 异常的映射：
@@ -148,7 +181,7 @@ print(job.status, job.uploaded_files, job.failed_files, job.uploaded_bytes)
 
 网络抖动时客户端自动重试（408/429/5xx），并支持上传进度回调。
 
-## 9. 开发与测试
+## 10. 开发与测试
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -162,7 +195,7 @@ python -m pytest tests/unit tests/integration -q      # 全量（S3 套件需 UP
 - `tests/conftest.py` 自动把 `sdk/` 加入 `sys.path`，SDK 源码可直接被测试导入。
 - 新增 SDK 方法请在 `tests/integration/test_sdk.py` 补充断言（Local 后端路径）。
 
-## 10. 发版
+## 11. 发版
 
 SDK 与服务端为两个独立发布包（`pyuploadx` / `pyuploadx-server`），流程见
 `docs/docs_product-design.md` §37：

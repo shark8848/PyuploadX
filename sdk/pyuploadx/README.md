@@ -65,6 +65,35 @@ client.download(info.id, "/tmp/README.md")      # 下载原文件
 client.delete(info.id)                          # 删除（幂等）
 ```
 
+### 指定目录上传、返回 URL 与 URL 下载
+
+```python
+import httpx
+
+# 1) 指定目录上传：自动拼接 object_key = <directory>/<文件名>
+info = client.upload_file(
+    "./report.pdf",
+    bucket="app-default",
+    directory="reports/2026",          # => object_key: reports/2026/report.pdf
+)
+large = client.upload_large_file(
+    "./model.bin",
+    bucket="app-default",
+    directory="models/backup",         # => object_key: models/backup/model.bin
+)
+
+# 2) 上传响应返回临时预签名下载 URL（expires_in 秒；Local 后端为 None）
+print(info.download_url, info.expires_in)
+url = client.get_download_url(info.id, expires_seconds=3600)   # 过期后重新获取
+
+# 3) 使用 URL 下载（httpx 流式写盘，不占内存）
+with httpx.stream("GET", url, follow_redirects=True) as resp:
+    resp.raise_for_status()
+    with open("/tmp/report.pdf", "wb") as f:
+        for chunk in resp.iter_bytes():
+            f.write(chunk)
+```
+
 ## 发版
 
 SDK 与服务端分开发布：SDK 包 `pyuploadx` 在本目录构建
