@@ -9,12 +9,14 @@
 | `0.1.0` | `v0.1.0` | `dist/pyuploadx-0.1.0-py3-none-any.whl` | 首个合并版（SDK + 服务端同包） |
 | `0.2.0` | `v0.2.0` | `dist/pyuploadx-0.2.0-py3-none-any.whl` | 拆分后 SDK-only，第三方依赖仅 httpx |
 | `0.3.0` | `v0.3.0` | `dist/pyuploadx-0.3.0-py3-none-any.whl` | 新增 `get_upload`/`get_directory_job` 状态查询；目录上传上报成功条目（统计真实） |
+| `0.4.0` | `v0.4.0` | `dist/pyuploadx-0.4.0-py3-none-any.whl` | 上传/完成响应附带临时预签名 `download_url`/`expires_in`；新增 `get_download_url` |
 
 ## pyuploadx-server（服务端，构建于仓库根）
 
 | 版本 | 标签 | wheel | 说明 |
 | --- | --- | --- | --- |
 | `0.1.0` | `server-v0.1.0` | `dist/pyuploadx_server-0.1.0-py3-none-any.whl` | 拆分后服务端独立包（app/ + upload_service/） |
+| `0.1.1` | `server-v0.1.1` | `dist/pyuploadx_server-0.1.1-py3-none-any.whl` | 上传/完成响应附带临时预签名 `download_url`/`expires_in` |
 
 ## 安装
 

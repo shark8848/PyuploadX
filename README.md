@@ -198,8 +198,9 @@ SDK 与服务端为两个独立发布包（`pyuploadx` / `pyuploadx-server`）�
 
 ```python
 # 上传结果：FileInfo（id/status/etag/size_bytes/lifecycle_mode/expires_at）
+# 响应自带临时预签名下载 URL（expires_in 秒；Local 后端为 None）
 info = client.upload_file("./README.md", bucket="app-default")
-print(info.id, info.status, info.size_bytes)
+print(info.id, info.status, info.size_bytes, info.download_url, info.expires_in)
 
 # 目录上传结果：DirectoryJobInfo（status/uploaded_files/failed_files/uploaded_bytes）
 job = client.upload_directory("./album-assets", bucket="app-default", destination_prefix="artists/10001")
@@ -212,7 +213,8 @@ job = client.get_directory_job(job.id)           # 目录任务状态（Director
 
 # 生命周期查询与下载
 lifecycle = client.get_lifecycle(info.id)
-client.download(info.id, "/tmp/downloaded.bin")
+url = client.get_download_url(info.id, expires_seconds=3600)   # 过期后重新获取 URL
+client.download(info.id, "/tmp/downloaded.bin")                 # 或直接走 SDK 下载
 ```
 
 ## REST API 摘要

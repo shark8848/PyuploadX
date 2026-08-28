@@ -42,9 +42,11 @@ job = client.upload_directory(
 上传接口同步返回结果对象（`FileInfo` / `DirectoryJobInfo`），后续可通过查询接口随时获取服务端最新状态。
 
 ```python
-# 上传结果：文件元数据与状态
+# 上传结果：文件元数据与状态（含临时预签名下载 URL，expires_in 秒；Local 后端为 None）
 info = client.upload_file("./README.md", bucket="app-default")
 print(info.id, info.status, info.size_bytes, info.etag)
+print(info.download_url, info.expires_in)
+url = client.get_download_url(info.id, expires_seconds=3600)    # 过期后重新获取
 
 # 大文件 Multipart 会话：查询分片上传状态（status: initiated/uploading/completed）
 session = client.create_upload(bucket="app-default", object_key="model.bin", total_size=1024, part_size=256)

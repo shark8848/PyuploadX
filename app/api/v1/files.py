@@ -59,9 +59,7 @@ async def upload_file(
         metadata=metadata_data,
     )
     await db.commit()
-    from app.services.file_service import serialize_file
-
-    return serialize_file(file_obj)
+    return await state.file_service.serialize_upload_result(db, identity, file_obj)
 
 
 @router.get("/{file_id}")

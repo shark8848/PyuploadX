@@ -50,6 +50,9 @@ def test_sdk_upload_file(app, auth_headers, tmp_path):
         info = client.upload_file(str(source), bucket="app-default")
         assert info.size_bytes == len(b"%PDF-1.4 fake content")
         assert info.status == "active"
+        assert info.download_url is None          # Local backend: no presigned_get
+        assert info.expires_in is None
+        assert client.get_download_url(info.id) is None
         fetched = client.get_file(info.id)
         assert fetched.id == info.id
 
@@ -67,6 +70,7 @@ def test_sdk_large_file_multipart(app, auth_headers, tmp_path):
         )
         assert info.size_bytes == 10
         assert info.object_key == "models/model.bin"
+        assert info.download_url is None
         session = client.create_upload(
             bucket="app-default",
             object_key="models/session-probe.bin",

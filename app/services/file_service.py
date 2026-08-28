@@ -217,6 +217,38 @@ class FileService:
             expires_seconds=expires,
         )
 
+    async def serialize_upload_result(
+        self,
+        session: AsyncSession,
+        identity: Identity,
+        file_obj: FileObject,
+    ) -> dict[str, Any]:
+        """FileInfo response extended with a temporary presigned download URL.
+
+        Backends without presigned_get (e.g. Local) return download_url=None;
+        clients then fall back to the proxied GET /v1/files/{id}/download.
+        """
+        data = serialize_file(file_obj)
+        if self.storage.capabilities.presigned_get:
+            try:
+                expires = min(
+                    self.settings.presign.default_expires_seconds,
+                    self.settings.presign.maximum_expires_seconds,
+                )
+                data["download_url"] = await self.storage.create_presigned_get_url(
+                    bucket=file_obj.bucket,
+                    object_key=file_obj.object_key,
+                    expires_seconds=expires,
+                )
+                data["expires_in"] = expires
+            except StorageCapabilityNotSupportedError:
+                data["download_url"] = None
+                data["expires_in"] = None
+        else:
+            data["download_url"] = None
+            data["expires_in"] = None
+        return data
+
     async def presign_put(
         self,
         session: AsyncSession,

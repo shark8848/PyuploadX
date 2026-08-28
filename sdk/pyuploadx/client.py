@@ -345,6 +345,26 @@ class UploadClient:
         self._raise_for_status(response)
         return DirectoryJobInfo.from_dict(response.json())
 
+    def get_download_url(
+        self,
+        file_id: str,
+        expires_seconds: int | None = None,
+    ) -> str | None:
+        """Return a fresh presigned download URL, or None on backends without
+        presigned_get (e.g. Local) where downloads must proxy through the API.
+        """
+        body: dict[str, Any] = {}
+        if expires_seconds is not None:
+            body["expires_seconds"] = expires_seconds
+        try:
+            response = self._request("POST", f"/v1/files/{file_id}/presign-download", json=body)
+            self._raise_for_status(response)
+            return response.json().get("url")
+        except UploadClientError as exc:
+            if getattr(exc, "status_code", None) == 501:
+                return None
+            raise
+
     def get_lifecycle(self, file_id: str) -> dict[str, Any]:
         response = self._request("GET", f"/v1/files/{file_id}/lifecycle")
         self._raise_for_status(response)

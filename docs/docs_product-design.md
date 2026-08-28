@@ -1270,6 +1270,23 @@ POST   /v1/files/{file_id}/presign-download
 DELETE /v1/files/{file_id}
 ```
 
+`POST /v1/files/upload` 与 `POST /v1/uploads/{upload_id}/complete` 的响应在文件字段之外
+附带临时预签名下载 URL：
+
+```json
+{
+  "id": "...",
+  "object_key": "reports/2026/q3.pdf",
+  "status": "active",
+  "download_url": "https://minio.example.com/app-default/reports/2026/q3.pdf?X-Amz-...",
+  "expires_in": 900
+}
+```
+
+- `download_url`：S3/MinIO 预签名 GET URL；Local 等不支持预签名的后端为 `null`。
+- `expires_in`：有效秒数（默认 900，上限 86400，受 `PresignConfig` 约束）。
+- URL 过期后通过 `POST /v1/files/{file_id}/presign-download` 重新获取。
+
 ## 16.3 Presign API
 
 ```text
@@ -1533,6 +1550,8 @@ pyuploadx/
 上传接口同步返回结果对象；服务端状态可通过以下查询接口随时获取（对应 §16 REST API）：
 
 - `upload_file()` / `upload_large_file()` → `FileInfo`（`id`/`status`/`etag`/`size_bytes`/`lifecycle_mode`/`expires_at`/`legal_hold`）。
+- 上传响应附带临时 `download_url`/`expires_in`（预签名 GET；Local 后端为 `None`）；
+  `get_download_url(file_id, expires_seconds=None)` 可随时重新获取（Local 返回 `None`）。
 - `create_upload()` → `UploadSessionInfo`（分片会话：`id`/`status`/`total_parts`/`completed_file_id`/`effective_lifecycle`）。
 - `upload_directory()` → `DirectoryJobInfo`（`status`/`uploaded_files`/`uploaded_bytes`/`failed_files`/`skipped_files`；SDK 逐条上报条目结果，服务端聚合统计）。
 - `get_file(file_id)` → 文件最新 `FileInfo`；`get_upload(upload_id)` → 分片会话最新状态；`get_directory_job(job_id)` → 目录任务最新状态。

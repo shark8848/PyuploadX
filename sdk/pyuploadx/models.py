@@ -21,6 +21,8 @@ class FileInfo:
     expires_at: str | None = None
     legal_hold: bool = False
     completed_at: str | None = None
+    download_url: str | None = None
+    expires_in: int | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FileInfo:
@@ -38,6 +40,8 @@ class FileInfo:
             expires_at=data.get("expires_at"),
             legal_hold=data.get("legal_hold", False),
             completed_at=data.get("completed_at"),
+            download_url=data.get("download_url"),
+            expires_in=data.get("expires_in"),
         )
 
 

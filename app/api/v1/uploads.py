@@ -183,9 +183,7 @@ async def complete_upload(
 ) -> dict[str, Any]:
     file_obj = await state.upload_service.complete(db, identity, upload_id)
     await db.commit()
-    from app.services.file_service import serialize_file
-
-    return serialize_file(file_obj)
+    return await state.file_service.serialize_upload_result(db, identity, file_obj)
 
 
 @router.post("/{upload_id}/abort")
