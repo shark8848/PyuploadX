@@ -1267,6 +1267,8 @@ POST   /v1/files/upload
 GET    /v1/files/{file_id}
 GET    /v1/files/{file_id}/download
 POST   /v1/files/{file_id}/presign-download
+POST   /v1/files/{file_id}/permanent-link
+GET    /v1/files/{file_id}/download-link
 DELETE /v1/files/{file_id}
 ```
 
@@ -1286,6 +1288,16 @@ DELETE /v1/files/{file_id}
 - `download_url`：S3/MinIO 预签名 GET URL；Local 等不支持预签名的后端为 `null`。
 - `expires_in`：有效秒数（默认 900，上限 86400，受 `PresignConfig` 约束）。
 - URL 过期后通过 `POST /v1/files/{file_id}/presign-download` 重新获取。
+
+### 永久下载链接
+
+- `POST /v1/files/{file_id}/permanent-link`（需鉴权）返回**永久有效**的下载链接：
+  `{"url": "<base>/v1/files/{file_id}/download-link?token=<hmac>", "permanent": true}`。
+- `GET /v1/files/{file_id}/download-link?token=<hmac>` **无需鉴权**，校验 HMAC 后流式返回文件；
+  适用于 Local/S3/MinIO 全部存储后端。
+- 链接永不过期，但文件被删除后失效；吊销方式为轮换签名密钥或删除文件。
+- 签名密钥来自环境变量 `UPLOAD_PERMANENT_LINK_SECRET`（HMAC-SHA256，绑定文件 ID）；
+  未配置时创建链接返回 `PERMANENT_LINK_NOT_CONFIGURED`（501）。
 
 ## 16.3 Presign API
 

@@ -18,6 +18,7 @@
 | --- | --- | --- | --- |
 | `0.1.0` | `server-v0.1.0` | `dist/pyuploadx_server-0.1.0-py3-none-any.whl` | 拆分后服务端独立包（app/ + upload_service/） |
 | `0.1.1` | `server-v0.1.1` | `dist/pyuploadx_server-0.1.1-py3-none-any.whl` | 上传/完成响应附带临时预签名 `download_url`/`expires_in` |
+| `0.1.2` | `server-v0.1.2` | `dist/pyuploadx_server-0.1.2-py3-none-any.whl` | 永久下载链接：`POST /v1/files/{id}/permanent-link` + 无鉴权 `download-link`（HMAC） |
 
 ## 安装
 

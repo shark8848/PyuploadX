@@ -254,6 +254,7 @@ with httpx.stream("GET", url, follow_redirects=True) as resp:
 GET  /healthz | /readyz | /startupz | /metrics
 POST /v1/files/upload          GET/DELETE /v1/files/{id}
 GET  /v1/files/{id}/download   POST /v1/files/{id}/presign-download
+POST /v1/files/{id}/permanent-link   GET /v1/files/{id}/download-link   # 永久下载链接
 POST /v1/uploads               POST /v1/uploads/resume
 GET  /v1/uploads/{id}          GET /v1/uploads/{id}/parts
 POST /v1/uploads/{id}/parts/presign

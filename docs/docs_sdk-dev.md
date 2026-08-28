@@ -195,7 +195,39 @@ python -m pytest tests/unit tests/integration -q      # 全量（S3 套件需 UP
 - `tests/conftest.py` 自动把 `sdk/` 加入 `sys.path`，SDK 源码可直接被测试导入。
 - 新增 SDK 方法请在 `tests/integration/test_sdk.py` 补充断言（Local 后端路径）。
 
-## 11. 发版
+## 11. 永久下载链接（服务端能力）
+
+SDK 未新增方法（保持对外定义不变）；永久链接通过服务端 API 获取：
+
+```bash
+# 创建永久链接（需鉴权）→ 返回永不过期的下载 URL
+curl -X POST http://localhost:8000/v1/files/<file_id>/permanent-link \
+  -H "X-API-Key: dev-key"
+
+# 结果：{"url": ".../v1/files/<file_id>/download-link?token=<hmac>", "permanent": true}
+```
+
+```python
+import httpx
+
+base = "http://localhost:8000"
+headers = {"X-API-Key": "dev-key"}
+resp = httpx.post(f"{base}/v1/files/{info.id}/permanent-link", headers=headers)
+link = resp.json()["url"]                     # 永久链接（文件删除前一直有效）
+
+with httpx.stream("GET", link) as r:          # 无需鉴权，直接下载
+    r.raise_for_status()
+    with open("/tmp/report.pdf", "wb") as f:
+        for chunk in r.iter_bytes():
+            f.write(chunk)
+```
+
+- 链接永不过期；文件删除后返回 404，token 错误返回 403。
+- 签名密钥：环境变量 `UPLOAD_PERMANENT_LINK_SECRET`（未配置时创建链接返回 501）。
+- 吊销：轮换 `UPLOAD_PERMANENT_LINK_SECRET` 后所有旧链接立即失效。
+
+## 12. 发版
+
 
 SDK 与服务端为两个独立发布包（`pyuploadx` / `pyuploadx-server`），流程见
 `docs/docs_product-design.md` §37：

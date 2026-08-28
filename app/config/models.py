@@ -117,6 +117,12 @@ class PresignConfig(BaseModel):
     upload_part_expires_seconds: int = 3600
 
 
+class PermanentLinkConfig(BaseModel):
+    enabled: bool = True
+    secret_from_env: str = "UPLOAD_PERMANENT_LINK_SECRET"
+    secret: str | None = None
+
+
 class DirectoryUploadLimits(BaseModel):
     maximum_files_per_job: int = 1_000_000
     maximum_directories_per_job: int = 100_000
@@ -270,6 +276,7 @@ class Settings(BaseModel):
     storage: StorageConfig = Field(default_factory=StorageConfig)
     uploads: UploadsConfig = Field(default_factory=UploadsConfig)
     presign: PresignConfig = Field(default_factory=PresignConfig)
+    permanent_link: PermanentLinkConfig = Field(default_factory=PermanentLinkConfig)
     directory_upload: DirectoryUploadConfig = Field(default_factory=DirectoryUploadConfig)
     lifecycle: LifecycleConfig = Field(default_factory=LifecycleConfig)
     portal: PortalConfig = Field(default_factory=PortalConfig)
@@ -293,6 +300,8 @@ class Settings(BaseModel):
             self.storage.s3.secret_key = os.environ.get(self.storage.s3.secret_key_from_env)
         if self.cluster.node_id is None:
             self.cluster.node_id = os.environ.get(self.cluster.node_id_from_env, "node-unknown")
+        if self.permanent_link.secret is None:
+            self.permanent_link.secret = os.environ.get(self.permanent_link.secret_from_env)
 
     @model_validator(mode="after")
     def _validate_settings(self) -> Settings:

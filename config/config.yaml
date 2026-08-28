@@ -10,6 +10,11 @@ server:
   workers: 2
   proxy_headers: true
 
+permanent_link:
+  # 永久下载链接开关与签名密钥（Secret 只从环境变量注入，见 UPLOAD_PERMANENT_LINK_SECRET）
+  enabled: true
+  secret: null
+
 auth:
   mode: api_key
   api_key:

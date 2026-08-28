@@ -28,6 +28,7 @@ def _configure_env() -> Path:
     os.environ["UPLOAD_STORAGE__LOCAL__MULTIPART_PATH"] = str(multipart_root)
     os.environ["UPLOAD_CLUSTER__ENABLED"] = "false"
     os.environ["UPLOAD_PORTAL__ORIGINS"] = '["http://localhost:5173"]'
+    os.environ["UPLOAD_PERMANENT_LINK_SECRET"] = "test-permanent-link-secret"
     os.environ["UPLOAD_UPLOADS__MULTIPART__MINIMUM_PART_SIZE_BYTES"] = "1"
     os.environ["UPLOAD_UPLOADS__MULTIPART__DEFAULT_PART_SIZE_BYTES"] = str(5 * 1024 * 1024)
     TEST_STATE["tmp"] = str(tmp)

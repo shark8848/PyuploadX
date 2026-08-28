@@ -19,6 +19,7 @@ from app.core.errors import (
 from app.db import repositories
 from app.db.models import FileObject, FileStatus, LifecycleStatus
 from app.directory_upload.paths import normalize_relative_path
+from app.core.permanent_links import sign, verify
 from app.lifecycle.policy import compute_effective_lifecycle
 from app.storage.base import StorageAdapter
 
@@ -177,6 +178,50 @@ class FileService:
         file_id: uuid.UUID,
     ) -> Any:
         file_obj = await self.get(session, identity, file_id)
+        stream = await self.storage.get_object(bucket=file_obj.bucket, object_key=file_obj.object_key)
+        return file_obj, stream
+
+    async def create_permanent_link(
+        self,
+        session: AsyncSession,
+        identity: Identity,
+        file_id: uuid.UUID,
+        base_url: str,
+    ) -> str:
+        """Return a permanent (non-expiring) download link for the file.
+
+        The link is an HMAC-signed URL served by the API itself, so it works for
+        every storage backend (Local included). It stays valid while the file
+        exists; revoke by rotating UPLOAD_PERMANENT_LINK_SECRET or deleting the file.
+        """
+        if not self.settings.permanent_link.enabled:
+            raise ApiError("PERMANENT_LINK_DISABLED", "Permanent links are disabled.", status_code=501)
+        secret = self.settings.permanent_link.secret
+        if not secret:
+            raise ApiError(
+                "PERMANENT_LINK_NOT_CONFIGURED",
+                "Set UPLOAD_PERMANENT_LINK_SECRET to enable permanent links.",
+                status_code=501,
+            )
+        await self.get(session, identity, file_id)
+        token = sign(file_id, secret)
+        return f"{base_url.rstrip('/')}/v1/files/{file_id}/download-link?token={token}"
+
+    def verify_link_token(self, file_id: uuid.UUID, token: str) -> bool:
+        secret = self.settings.permanent_link.secret
+        if not secret:
+            return False
+        return verify(file_id, secret, token)
+
+    async def download_for_link(
+        self,
+        session: AsyncSession,
+        file_id: uuid.UUID,
+    ) -> Any:
+        """Stream a file through a verified permanent link (no tenant scope)."""
+        file_obj = await repositories.file_repository.get_file(session, file_id)
+        if file_obj is None or file_obj.status == FileStatus.deleted:
+            raise ApiError("FILE_NOT_FOUND", f"File {file_id} does not exist.", status_code=404)
         stream = await self.storage.get_object(bucket=file_obj.bucket, object_key=file_obj.object_key)
         return file_obj, stream
 

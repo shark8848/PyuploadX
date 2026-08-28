@@ -6,7 +6,7 @@ import json
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import IdentityDep, SessionDep, StateDep
@@ -60,6 +60,47 @@ async def upload_file(
     )
     await db.commit()
     return await state.file_service.serialize_upload_result(db, identity, file_obj)
+
+
+@router.post("/{file_id}/permanent-link")
+async def create_permanent_link(
+    request: Request,
+    state: StateDep,
+    db: SessionDep,
+    identity: IdentityDep,
+    file_id: uuid.UUID,
+) -> dict[str, Any]:
+    url = await state.file_service.create_permanent_link(
+        db, identity, file_id, str(request.base_url)
+    )
+    return {"url": url, "permanent": True}
+
+
+@router.get("/{file_id}/download-link")
+async def download_link(
+    state: StateDep,
+    db: SessionDep,
+    file_id: uuid.UUID,
+    token: str,
+) -> StreamingResponse:
+    if not state.file_service.verify_link_token(file_id, token):
+        from app.core.errors import ApiError
+
+        raise ApiError("INVALID_DOWNLOAD_LINK", "Invalid or missing download link token.", status_code=403)
+    file_obj, stream = await state.file_service.download_for_link(db, file_id)
+
+    async def iterator():
+        async for chunk in stream:
+            yield chunk
+
+    headers = {"X-Request-ID": "link"}
+    if file_obj.etag:
+        headers["ETag"] = file_obj.etag
+    return StreamingResponse(
+        iterator(),
+        media_type=file_obj.content_type or "application/octet-stream",
+        headers=headers,
+    )
 
 
 @router.get("/{file_id}")

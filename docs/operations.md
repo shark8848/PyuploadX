@@ -2,6 +2,14 @@
 
 运维操作对应产品设计说明书 §28（备份、恢复、升级、回滚）。
 
+## 永久下载链接
+
+- 启用：设置环境变量 `UPLOAD_PERMANENT_LINK_SECRET`（强随机串），默认关闭（未配置时
+  `POST /v1/files/{id}/permanent-link` 返回 `PERMANENT_LINK_NOT_CONFIGURED`）。
+- 语义：链接永不过期；文件删除后 404；token 错误 403。
+- 吊销：轮换 `UPLOAD_PERMANENT_LINK_SECRET` 后所有已签发链接立即失效（建议定期轮换）。
+- 注意：`download-link` 无鉴权，请勿在日志中记录完整链接。
+
 ## 备份
 
 ### PostgreSQL
