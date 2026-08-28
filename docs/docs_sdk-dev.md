@@ -8,7 +8,7 @@
 
 ```bash
 pip install pyuploadx          # 官方 PyPI（Python ≥ 3.11，第三方依赖仅 httpx）
-pip install dist/pyuploadx-0.6.0-py3-none-any.whl   # 或仓库直装（历史版本清单见 dist/README.md）
+pip install dist/pyuploadx-0.7.0-py3-none-any.whl   # 或仓库直装（历史版本清单见 dist/README.md）
 ```
 
 ## 2. 客户端初始化
@@ -46,7 +46,7 @@ client.on_progress(lambda uploaded, total: print(f"{uploaded}/{total}"))  # 上�
 | `get_upload(upload_id)` | `UploadSessionInfo` | 分片会话最新状态 |
 | `get_directory_job(job_id)` | `DirectoryJobInfo` | 目录任务最新状态与统计 |
 | `get_download_url(file_id, expires_seconds=None)` | `str \| None` | 预签名下载 URL（Local 后端为 `None`） |
-| `download(file_id, destination, *, use_url=True, expires_seconds=None, progress=None)` | `Path` | 下载到本地：优先预签名 URL 流式下载，Local 自动回退代理 |
+| `download(file_id, destination, *, url=None, progress=None)` | `Path` | 下载到本地：默认代理流式下载；传入 `url=` 直接从该 URL（预签名/永久链接）下载 |
 | `download_from_url(url, destination, *, progress=None)` | `Path` | 直接流式下载任意 HTTP(S) URL（预签名/永久链接） |
 | `delete(file_id)` | `None` | 删除（幂等） |
 | `get_lifecycle(file_id)` | `dict` | 生效生命周期 |
@@ -89,9 +89,10 @@ job = client.get_directory_job(job_id)                 # uploaded_files / failed
 lifecycle = client.get_lifecycle(info.id)
 client.update_lifecycle(info.id, {"mode": "ttl", "ttl_seconds": 3600})
 
-# 下载与删除（默认 URL 模式：预签名流式，Local 自动回退代理）
-client.download(info.id, "/tmp/README.md")          # progress(bytes_written, total_bytes) 可选
-client.download_from_url(url, "/tmp/README.md")     # 直接下载 URL（预签名/永久链接）
+# 下载与删除（默认代理流式下载；需要 URL 时显式传入）
+client.download(info.id, "/tmp/README.md")          # 代理流式；progress(written, total) 可选
+client.download(info.id, "/tmp/README.md", url=url)  # 直接使用预签名/永久链接 URL
+client.download_from_url(url, "/tmp/README.md")     # 等价，无需 file_id
 client.delete(info.id)
 ```
 
@@ -123,6 +124,7 @@ url = client.get_download_url(info.id, expires_seconds=3600)   # 过期后重新
 # 3) 使用 URL 下载：SDK 流式写盘，不占内存，支持 progress 回调
 client.download_from_url(url, "/tmp/report.pdf",
                          progress=lambda done, total: print(f"{done}/{total}"))
+# 或：client.download(info.id, "/tmp/report.pdf", url=url)  # 等价，需 file_id
 
 # 等价实现：原始 httpx 流式写盘
 with httpx.stream("GET", url, follow_redirects=True) as resp:
@@ -134,9 +136,11 @@ with httpx.stream("GET", url, follow_redirects=True) as resp:
 
 - `directory` 经 `normalize_relative_path` 归一化：去首尾 `/`、`\` 转 `/`、拒绝 `.`/`..`/绝对路径/盘符路径。
 - `object_key` 与 `directory` 同时给出时以 `object_key` 为准。
-- 下载三选一：`download(file_id, ...)`（默认 URL 模式，Local 自动回退代理）、
+- 下载三选一：`download(file_id, ...)`（代理流式）、`download(file_id, ..., url=...)` 或
   `download_from_url(url, ...)`（预签名/永久链接）、原始 `httpx.stream`（与 SDK 等价）。
 - `download` / `download_from_url` 均逐块写盘，不整体缓冲；`progress(written, total)` 可选回调。
+- 需要预签名 URL 时先调 `get_download_url(file_id, expires_seconds=...)`（或上传响应
+  `download_url` / 永久链接 API），再交给 `url=` / `download_from_url` 下载，无需其它判断。
 
 ## 7. 目录上传
 
@@ -207,7 +211,7 @@ python -m pytest tests/unit tests/integration -q      # 全量（S3 套件需 UP
 ## 11. 永久下载链接（服务端能力）
 
 永久链接的**创建**未封装为 SDK 方法（保持服务端 API 直调，未新增创建接口）；
-消费侧由 v0.6.0 新增的 `download_from_url()` 与 `download(..., use_url=True)` 支持（向后兼容）：
+消费侧由 v0.7.0 提供的 `download_from_url()` 与 `download(..., url=...)` 支持：
 
 ```bash
 # 创建永久链接（需鉴权）→ 返回永不过期的下载 URL

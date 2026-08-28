@@ -65,7 +65,7 @@ def test_sdk_upload_file(app, auth_headers, tmp_path):
         fetched = client.get_file(info.id)
         assert fetched.id == info.id
         dest = tmp_path / "downloaded.bin"
-        saved = client.download(info.id, str(dest))          # Local: 回退代理流式下载
+        saved = client.download(info.id, str(dest))          # 代理流式下载
         assert saved == dest
         assert dest.read_bytes() == source.read_bytes()
 
@@ -103,30 +103,43 @@ def test_sdk_large_file_multipart(app, auth_headers, tmp_path):
         assert fetched_session.status == "initiated"
 
 
-def test_sdk_download_from_url(app, auth_headers, tmp_path):
+def test_sdk_download_from_url(app, auth_headers, tmp_path, monkeypatch):
     source = tmp_path / "demo.bin"
     source.write_bytes(b"url-download-body")
     with _make_client(app, auth_headers) as client:
         info = client.upload_file(str(source), bucket="app-default")
-        transport = SyncASGITransport(app)
         import httpx as _httpx
 
-        with _httpx.Client(transport=transport) as raw:
+        with _httpx.Client(transport=SyncASGITransport(app)) as raw:
             link = raw.post(
                 f"http://testserver/v1/files/{info.id}/permanent-link",
                 headers=auth_headers,
             ).json()["url"]
-        from pyuploadx.client import _stream_to_disk
+
+        import pyuploadx.client as client_mod
+
+        original = client_mod._stream_to_disk
+        monkeypatch.setattr(
+            client_mod,
+            "_stream_to_disk",
+            lambda url, dest, progress=None, transport=None: original(
+                url, dest, progress=progress, transport=SyncASGITransport(app)
+            ),
+        )
 
         dest = tmp_path / "from-url.bin"
         progress: list[tuple[int, int]] = []
-        saved = _stream_to_disk(
-            link, dest, progress=lambda written, total: progress.append((written, total)),
-            transport=transport,
+        saved = client.download_from_url(
+            link, str(dest), progress=lambda w, t: progress.append((w, t))
         )
         assert saved == dest
         assert dest.read_bytes() == source.read_bytes()
         assert progress[-1][0] == len(b"url-download-body")
+
+        dest2 = tmp_path / "via-download.bin"
+        saved2 = client.download(info.id, str(dest2), url=link)   # download(url=...) 等价
+        assert saved2 == dest2
+        assert dest2.read_bytes() == source.read_bytes()
 
 
 def test_sdk_directory_upload(app, auth_headers, tmp_path):

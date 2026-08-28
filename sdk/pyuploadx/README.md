@@ -65,8 +65,9 @@ client.download(
     info.id,
     "/tmp/README.md",
     progress=lambda done, total: print(f"{done}/{total}"),
-)  # URL 模式：预签名流式，Local 自动回退代理
-client.download_from_url(url, "/tmp/README.md") # 直接下载 URL（预签名/永久链接）
+)  # 代理流式下载
+client.download(info.id, "/tmp/README.md", url=url)  # 直接用预签名/永久链接 URL 下载
+client.download_from_url(url, "/tmp/README.md")      # 等价，无需 file_id
 client.delete(info.id)                          # 删除（幂等）
 ```
 

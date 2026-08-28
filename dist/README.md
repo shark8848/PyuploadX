@@ -12,6 +12,7 @@
 | `0.4.0` | `v0.4.0` | `dist/pyuploadx-0.4.0-py3-none-any.whl` | 上传/完成响应附带临时预签名 `download_url`/`expires_in`；新增 `get_download_url` |
 | `0.5.0` | `v0.5.0` | `dist/pyuploadx-0.5.0-py3-none-any.whl` | 上传支持 `directory` 参数自动拼 object_key（示例：指定目录上传 + URL 下载） |
 | `0.6.0` | `v0.6.0` | `dist/pyuploadx-0.6.0-py3-none-any.whl` | download URL 模式（`use_url` 自动选择/降级）与 `download_from_url` |
+| `0.7.0` | `v0.7.0` | `dist/pyuploadx-0.7.0-py3-none-any.whl` | 简化 download：默认代理流式；`url=` 或 `download_from_url` 直接下载 URL（移除 `use_url`/`expires_seconds` 自动逻辑） |
 
 ## pyuploadx-server（服务端，构建于仓库根）
 

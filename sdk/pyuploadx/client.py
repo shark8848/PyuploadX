@@ -372,22 +372,19 @@ class UploadClient:
         file_id: str,
         destination: str,
         *,
-        use_url: bool = True,
-        expires_seconds: int | None = None,
+        url: str | None = None,
         progress: Any = None,
     ) -> Path:
         """Download a file to disk, streaming in chunks (no full buffering).
 
-        use_url=True (default) streams from a fresh presigned URL when the
-        storage backend supports it (S3/MinIO), falling back to the proxied
-        API download otherwise (e.g. Local). progress(bytes_written, total_bytes)
-        is invoked per chunk when provided.
+        Default streams through the API proxy (GET /v1/files/{id}/download).
+        Pass url= to stream from an HTTP(S) URL directly (presigned or
+        permanent link) without any presign lookup or backend probing.
+        progress(bytes_written, total_bytes) is invoked per chunk when provided.
         """
         dest = Path(destination).expanduser()
-        if use_url:
-            url = self.get_download_url(file_id, expires_seconds=expires_seconds)
-            if url:
-                return _stream_to_disk(url, dest, progress=progress)
+        if url is not None:
+            return _stream_to_disk(url, dest, progress=progress)
         with self._client.stream("GET", f"/v1/files/{file_id}/download") as response:
             self._raise_for_status(response)
             return _stream_response(response, dest, progress=progress)
@@ -399,7 +396,11 @@ class UploadClient:
         *,
         progress: Any = None,
     ) -> Path:
-        """Stream any HTTP(S) URL (presigned or permanent link) to disk."""
+        """Stream any HTTP(S) URL (presigned or permanent link) to disk.
+
+        Equivalent to download(file_id, url=url) when the URL is already known;
+        no file_id or backend capability lookup is involved.
+        """
         dest = Path(destination).expanduser()
         return _stream_to_disk(url, dest, progress=progress)
 

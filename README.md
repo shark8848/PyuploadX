@@ -189,7 +189,7 @@ job = client.upload_directory(
 ```bash
 pip install pyuploadx          # 官方 PyPI：Python SDK（Python ≥ 3.11，第三方依赖仅 httpx）
 pip install pyuploadx-server   # 官方 PyPI：服务端（FastAPI，Docker 部署时通常无需 pip 安装）
-pip install dist/pyuploadx-0.6.0-py3-none-any.whl   # 或仓库直装（历史版本清单见 dist/README.md）
+pip install dist/pyuploadx-0.7.0-py3-none-any.whl   # 或仓库直装（历史版本清单见 dist/README.md）
 ```
 
 SDK 与服务端为两个独立发布包（`pyuploadx` / `pyuploadx-server`）；发版与版本管理见
@@ -216,7 +216,7 @@ job = client.get_directory_job(job.id)           # 目录任务状态（Director
 # 生命周期查询与下载
 lifecycle = client.get_lifecycle(info.id)
 url = client.get_download_url(info.id, expires_seconds=3600)   # 过期后重新获取 URL
-client.download(info.id, "/tmp/downloaded.bin")                # URL 模式：预签名流式，Local 回退代理
+client.download(info.id, "/tmp/downloaded.bin")                # 代理流式下载（或 url= 传 URL 下载）
 client.download_from_url(url, "/tmp/downloaded.bin")           # 直接下载 URL（预签名/永久链接）
 ```
 
