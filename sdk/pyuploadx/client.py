@@ -39,6 +39,34 @@ def _resolve_object_key(
     return filename
 
 
+def _stream_response(response: httpx.Response, dest: Path, progress: Any = None) -> Path:
+    total = int(response.headers.get("content-length") or 0)
+    written = 0
+    with dest.open("wb") as handle:
+        for chunk in response.iter_bytes():
+            handle.write(chunk)
+            written += len(chunk)
+            if progress is not None:
+                progress(written, total)
+    return dest
+
+
+def _stream_to_disk(
+    url: str,
+    dest: Path,
+    progress: Any = None,
+    transport: httpx.BaseTransport | None = None,
+) -> Path:
+    client = httpx.Client(follow_redirects=True, timeout=60.0, transport=transport)
+    try:
+        with client.stream("GET", url) as response:
+            if response.status_code >= 400:
+                raise UploadClientError(f"download failed with status {response.status_code}")
+            return _stream_response(response, dest, progress=progress)
+    finally:
+        client.close()
+
+
 class UploadClient:
     def __init__(
         self,
@@ -339,12 +367,41 @@ class UploadClient:
         finally:
             db_state.close()
 
-    def download(self, file_id: str, destination: str) -> Path:
-        response = retry(lambda: self._client.get(f"/v1/files/{file_id}/download"))
-        self._raise_for_status(response)
+    def download(
+        self,
+        file_id: str,
+        destination: str,
+        *,
+        use_url: bool = True,
+        expires_seconds: int | None = None,
+        progress: Any = None,
+    ) -> Path:
+        """Download a file to disk, streaming in chunks (no full buffering).
+
+        use_url=True (default) streams from a fresh presigned URL when the
+        storage backend supports it (S3/MinIO), falling back to the proxied
+        API download otherwise (e.g. Local). progress(bytes_written, total_bytes)
+        is invoked per chunk when provided.
+        """
         dest = Path(destination).expanduser()
-        dest.write_bytes(response.content)
-        return dest
+        if use_url:
+            url = self.get_download_url(file_id, expires_seconds=expires_seconds)
+            if url:
+                return _stream_to_disk(url, dest, progress=progress)
+        with self._client.stream("GET", f"/v1/files/{file_id}/download") as response:
+            self._raise_for_status(response)
+            return _stream_response(response, dest, progress=progress)
+
+    def download_from_url(
+        self,
+        url: str,
+        destination: str,
+        *,
+        progress: Any = None,
+    ) -> Path:
+        """Stream any HTTP(S) URL (presigned or permanent link) to disk."""
+        dest = Path(destination).expanduser()
+        return _stream_to_disk(url, dest, progress=progress)
 
     def delete(self, file_id: str) -> None:
         response = self._request("DELETE", f"/v1/files/{file_id}")

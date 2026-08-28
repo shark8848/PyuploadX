@@ -64,6 +64,10 @@ def test_sdk_upload_file(app, auth_headers, tmp_path):
             pass
         fetched = client.get_file(info.id)
         assert fetched.id == info.id
+        dest = tmp_path / "downloaded.bin"
+        saved = client.download(info.id, str(dest))          # Local: 回退代理流式下载
+        assert saved == dest
+        assert dest.read_bytes() == source.read_bytes()
 
 
 def test_sdk_large_file_multipart(app, auth_headers, tmp_path):
@@ -97,6 +101,32 @@ def test_sdk_large_file_multipart(app, auth_headers, tmp_path):
         fetched_session = client.get_upload(session.id)
         assert fetched_session.id == session.id
         assert fetched_session.status == "initiated"
+
+
+def test_sdk_download_from_url(app, auth_headers, tmp_path):
+    source = tmp_path / "demo.bin"
+    source.write_bytes(b"url-download-body")
+    with _make_client(app, auth_headers) as client:
+        info = client.upload_file(str(source), bucket="app-default")
+        transport = SyncASGITransport(app)
+        import httpx as _httpx
+
+        with _httpx.Client(transport=transport) as raw:
+            link = raw.post(
+                f"http://testserver/v1/files/{info.id}/permanent-link",
+                headers=auth_headers,
+            ).json()["url"]
+        from pyuploadx.client import _stream_to_disk
+
+        dest = tmp_path / "from-url.bin"
+        progress: list[tuple[int, int]] = []
+        saved = _stream_to_disk(
+            link, dest, progress=lambda written, total: progress.append((written, total)),
+            transport=transport,
+        )
+        assert saved == dest
+        assert dest.read_bytes() == source.read_bytes()
+        assert progress[-1][0] == len(b"url-download-body")
 
 
 def test_sdk_directory_upload(app, auth_headers, tmp_path):

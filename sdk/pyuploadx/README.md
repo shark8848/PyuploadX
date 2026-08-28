@@ -61,7 +61,8 @@ print(job.status, job.uploaded_files, job.failed_files, job.uploaded_bytes)
 info = client.get_file(info.id)                 # FileInfo：status/expires_at/legal_hold/completed_at
 lifecycle = client.get_lifecycle(info.id)       # 生效生命周期
 client.update_lifecycle(info.id, {"mode": "ttl", "ttl_seconds": 3600})
-client.download(info.id, "/tmp/README.md")      # 下载原文件
+client.download(info.id, "/tmp/README.md")      # URL 模式：预签名流式，Local 自动回退代理
+client.download_from_url(url, "/tmp/README.md") # 直接下载 URL（预签名/永久链接）
 client.delete(info.id)                          # 删除（幂等）
 ```
 

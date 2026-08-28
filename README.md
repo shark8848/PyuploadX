@@ -216,7 +216,8 @@ job = client.get_directory_job(job.id)           # 目录任务状态（Director
 # 生命周期查询与下载
 lifecycle = client.get_lifecycle(info.id)
 url = client.get_download_url(info.id, expires_seconds=3600)   # 过期后重新获取 URL
-client.download(info.id, "/tmp/downloaded.bin")                 # 或直接走 SDK 下载
+client.download(info.id, "/tmp/downloaded.bin")                # URL 模式：预签名流式，Local 回退代理
+client.download_from_url(url, "/tmp/downloaded.bin")           # 直接下载 URL（预签名/永久链接）
 ```
 
 ### 指定目录上传、返回 URL 与 URL 下载

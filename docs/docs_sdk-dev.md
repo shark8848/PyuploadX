@@ -46,7 +46,8 @@ client.on_progress(lambda uploaded, total: print(f"{uploaded}/{total}"))  # 上�
 | `get_upload(upload_id)` | `UploadSessionInfo` | 分片会话最新状态 |
 | `get_directory_job(job_id)` | `DirectoryJobInfo` | 目录任务最新状态与统计 |
 | `get_download_url(file_id, expires_seconds=None)` | `str \| None` | 预签名下载 URL（Local 后端为 `None`） |
-| `download(file_id, destination)` | `Path` | 下载到本地（Local 后端亦可用） |
+| `download(file_id, destination, *, use_url=True, expires_seconds=None, progress=None)` | `Path` | 下载到本地：优先预签名 URL 流式下载，Local 自动回退代理 |
+| `download_from_url(url, destination, *, progress=None)` | `Path` | 直接流式下载任意 HTTP(S) URL（预签名/永久链接） |
 | `delete(file_id)` | `None` | 删除（幂等） |
 | `get_lifecycle(file_id)` | `dict` | 生效生命周期 |
 | `update_lifecycle(file_id, lifecycle)` | `dict` | 更新生命周期 |
@@ -88,8 +89,9 @@ job = client.get_directory_job(job_id)                 # uploaded_files / failed
 lifecycle = client.get_lifecycle(info.id)
 client.update_lifecycle(info.id, {"mode": "ttl", "ttl_seconds": 3600})
 
-# 下载与删除
-client.download(info.id, "/tmp/README.md")
+# 下载与删除（默认 URL 模式：预签名流式，Local 自动回退代理）
+client.download(info.id, "/tmp/README.md")          # progress(bytes_written, total_bytes) 可选
+client.download_from_url(url, "/tmp/README.md")     # 直接下载 URL（预签名/永久链接）
 client.delete(info.id)
 ```
 
@@ -215,11 +217,8 @@ headers = {"X-API-Key": "dev-key"}
 resp = httpx.post(f"{base}/v1/files/{info.id}/permanent-link", headers=headers)
 link = resp.json()["url"]                     # 永久链接（文件删除前一直有效）
 
-with httpx.stream("GET", link) as r:          # 无需鉴权，直接下载
-    r.raise_for_status()
-    with open("/tmp/report.pdf", "wb") as f:
-        for chunk in r.iter_bytes():
-            f.write(chunk)
+# 或直接用 SDK 的 URL 下载模式（流式写盘，支持 progress 回调）
+client.download_from_url(link, "/tmp/report.pdf")
 ```
 
 - 链接永不过期；文件删除后返回 404，token 错误返回 403。
