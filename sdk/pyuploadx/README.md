@@ -36,6 +36,33 @@ job = client.upload_directory(
 )
 ```
 
+
+## 获取结果与状态
+
+上传接口同步返回结果对象（`FileInfo` / `DirectoryJobInfo`），后续可通过查询接口随时获取服务端最新状态。
+
+```python
+# 上传结果：文件元数据与状态
+info = client.upload_file("./README.md", bucket="app-default")
+print(info.id, info.status, info.size_bytes, info.etag)
+
+# 大文件 Multipart 会话：查询分片上传状态（status: initiated/uploading/completed）
+session = client.create_upload(bucket="app-default", object_key="model.bin", total_size=1024, part_size=256)
+probe = client.get_upload(session.id)
+print(probe.status, probe.completed_file_id)
+
+# 目录上传：任务统计与状态（completed/failed_files/uploaded_bytes）
+job = client.upload_directory("./album-assets", bucket="app-default")
+print(job.status, job.uploaded_files, job.failed_files, job.uploaded_bytes)
+
+# 事后查询：文件最新状态、生命周期与下载
+info = client.get_file(info.id)                 # FileInfo：status/expires_at/legal_hold/completed_at
+lifecycle = client.get_lifecycle(info.id)       # 生效生命周期
+client.update_lifecycle(info.id, {"mode": "ttl", "ttl_seconds": 3600})
+client.download(info.id, "/tmp/README.md")      # 下载原文件
+client.delete(info.id)                          # 删除（幂等）
+```
+
 ## 发版
 
 SDK 与服务端分开发布：SDK 包 `pyuploadx` 在本目录构建

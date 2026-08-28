@@ -192,6 +192,28 @@ pip install dist/pyuploadx-0.2.0-py3-none-any.whl   # 或仓库直装（保留�
 
 SDK 与服务端为两个独立发布包（`pyuploadx` / `pyuploadx-server`）；发版与版本管理见
 [docs/docs_product-design.md §37](docs/docs_product-design.md)。
+### 获取结果与状态
+
+上传接口同步返回结果对象；文件上传后可随时查询最新状态、生命周期并下载。
+
+```python
+# 上传结果：FileInfo（id/status/etag/size_bytes/lifecycle_mode/expires_at）
+info = client.upload_file("./README.md", bucket="app-default")
+print(info.id, info.status, info.size_bytes)
+
+# 目录上传结果：DirectoryJobInfo（status/uploaded_files/failed_files/uploaded_bytes）
+job = client.upload_directory("./album-assets", bucket="app-default", destination_prefix="artists/10001")
+print(job.status, job.uploaded_files, job.failed_files)
+
+# 查询接口：服务端最新状态（文件 / 分片会话 / 目录任务）
+info = client.get_file(info.id)                  # 最新 FileInfo
+session = client.get_upload(session_id)          # 分片会话状态（UploadSessionInfo）
+job = client.get_directory_job(job.id)           # 目录任务状态（DirectoryJobInfo）
+
+# 生命周期查询与下载
+lifecycle = client.get_lifecycle(info.id)
+client.download(info.id, "/tmp/downloaded.bin")
+```
 
 ## REST API 摘要
 

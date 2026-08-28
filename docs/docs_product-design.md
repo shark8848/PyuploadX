@@ -1528,6 +1528,27 @@ pyuploadx/
 ├── paths.py
 └── scheduler.py
 ```
+## 17.7 结果与状态查询
+
+上传接口同步返回结果对象；服务端状态可通过以下查询接口随时获取（对应 §16 REST API）：
+
+- `upload_file()` / `upload_large_file()` → `FileInfo`（`id`/`status`/`etag`/`size_bytes`/`lifecycle_mode`/`expires_at`/`legal_hold`）。
+- `create_upload()` → `UploadSessionInfo`（分片会话：`id`/`status`/`total_parts`/`completed_file_id`/`effective_lifecycle`）。
+- `upload_directory()` → `DirectoryJobInfo`（`status`/`uploaded_files`/`uploaded_bytes`/`failed_files`/`skipped_files`；SDK 逐条上报条目结果，服务端聚合统计）。
+- `get_file(file_id)` → 文件最新 `FileInfo`；`get_upload(upload_id)` → 分片会话最新状态；`get_directory_job(job_id)` → 目录任务最新状态。
+- `get_lifecycle(file_id)` / `update_lifecycle(...)` / `extend_lifecycle(...)` / `set_legal_hold(...)` → 生命周期查询与变更。
+- `download(file_id, dest)` / `delete(file_id)` → 下载与删除（幂等）。
+
+```python
+info = client.upload_file("./README.md", bucket="app-default")
+print(info.id, info.status, info.size_bytes)          # 同步返回结果
+
+info = client.get_file(info.id)                        # 事后查询文件最新状态
+session = client.get_upload(session_id)                # 分片会话状态
+job = client.get_directory_job(job_id)                 # 目录任务统计
+lifecycle = client.get_lifecycle(info.id)
+client.download(info.id, "/tmp/README.md")
+```
 
 ---
 

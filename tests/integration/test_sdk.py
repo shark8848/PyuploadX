@@ -67,6 +67,15 @@ def test_sdk_large_file_multipart(app, auth_headers, tmp_path):
         )
         assert info.size_bytes == 10
         assert info.object_key == "models/model.bin"
+        session = client.create_upload(
+            bucket="app-default",
+            object_key="models/session-probe.bin",
+            total_size=10,
+            part_size=5,
+        )
+        fetched_session = client.get_upload(session.id)
+        assert fetched_session.id == session.id
+        assert fetched_session.status == "initiated"
 
 
 def test_sdk_directory_upload(app, auth_headers, tmp_path):
@@ -86,3 +95,7 @@ def test_sdk_directory_upload(app, auth_headers, tmp_path):
         )
         assert job.status == "completed"
         assert job.total_files == 2
+        fetched_job = client.get_directory_job(job.id)
+        assert fetched_job.id == job.id
+        assert fetched_job.status == "completed"
+        assert fetched_job.uploaded_files == 2

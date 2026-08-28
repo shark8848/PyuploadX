@@ -293,6 +293,15 @@ class UploadClient:
                         lifecycle=lifecycle,
                     )
                     db_state.mark_uploaded(entry["relative_path"], "", file_info.id)
+                    self._request(
+                        "POST",
+                        f"/v1/directory-uploads/{job_id}/entries/result",
+                        json={
+                            "entry_id": entry_ids.get(entry["relative_path"], ""),
+                            "status": "uploaded",
+                            "file_id": file_info.id,
+                        },
+                    )
                 except UploadClientError:
                     self._request(
                         "POST",
@@ -325,6 +334,16 @@ class UploadClient:
         response = self._request("GET", f"/v1/files/{file_id}")
         self._raise_for_status(response)
         return FileInfo.from_dict(response.json())
+
+    def get_upload(self, upload_id: str) -> UploadSessionInfo:
+        response = self._request("GET", f"/v1/uploads/{upload_id}")
+        self._raise_for_status(response)
+        return UploadSessionInfo.from_dict(response.json())
+
+    def get_directory_job(self, job_id: str) -> DirectoryJobInfo:
+        response = self._request("GET", f"/v1/directory-uploads/{job_id}")
+        self._raise_for_status(response)
+        return DirectoryJobInfo.from_dict(response.json())
 
     def get_lifecycle(self, file_id: str) -> dict[str, Any]:
         response = self._request("GET", f"/v1/files/{file_id}/lifecycle")

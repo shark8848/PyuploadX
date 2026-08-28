@@ -8,6 +8,7 @@
 | --- | --- | --- | --- |
 | `0.1.0` | `v0.1.0` | `dist/pyuploadx-0.1.0-py3-none-any.whl` | 首个合并版（SDK + 服务端同包） |
 | `0.2.0` | `v0.2.0` | `dist/pyuploadx-0.2.0-py3-none-any.whl` | 拆分后 SDK-only，第三方依赖仅 httpx |
+| `0.3.0` | `v0.3.0` | `dist/pyuploadx-0.3.0-py3-none-any.whl` | 新增 `get_upload`/`get_directory_job` 状态查询；目录上传上报成功条目（统计真实） |
 
 ## pyuploadx-server（服务端，构建于仓库根）
 
