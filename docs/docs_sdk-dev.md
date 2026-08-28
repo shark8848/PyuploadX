@@ -8,7 +8,7 @@
 
 ```bash
 pip install pyuploadx          # 官方 PyPI（Python ≥ 3.11，第三方依赖仅 httpx）
-pip install dist/pyuploadx-0.4.0-py3-none-any.whl   # 或仓库直装（见 dist/README.md）
+pip install dist/pyuploadx-0.6.0-py3-none-any.whl   # 或仓库直装（历史版本清单见 dist/README.md）
 ```
 
 ## 2. 客户端初始化
@@ -120,7 +120,11 @@ large = client.upload_large_file(
 print(info.download_url, info.expires_in)
 url = client.get_download_url(info.id, expires_seconds=3600)   # 过期后重新获取
 
-# 3) 使用 URL 下载：httpx 流式写盘，不占内存
+# 3) 使用 URL 下载：SDK 流式写盘，不占内存，支持 progress 回调
+client.download_from_url(url, "/tmp/report.pdf",
+                         progress=lambda done, total: print(f"{done}/{total}"))
+
+# 等价实现：原始 httpx 流式写盘
 with httpx.stream("GET", url, follow_redirects=True) as resp:
     resp.raise_for_status()
     with open("/tmp/report.pdf", "wb") as f:
@@ -130,6 +134,9 @@ with httpx.stream("GET", url, follow_redirects=True) as resp:
 
 - `directory` 经 `normalize_relative_path` 归一化：去首尾 `/`、`\` 转 `/`、拒绝 `.`/`..`/绝对路径/盘符路径。
 - `object_key` 与 `directory` 同时给出时以 `object_key` 为准。
+- 下载三选一：`download(file_id, ...)`（默认 URL 模式，Local 自动回退代理）、
+  `download_from_url(url, ...)`（预签名/永久链接）、原始 `httpx.stream`（与 SDK 等价）。
+- `download` / `download_from_url` 均逐块写盘，不整体缓冲；`progress(written, total)` 可选回调。
 
 ## 7. 目录上传
 

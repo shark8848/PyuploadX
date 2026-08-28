@@ -9,6 +9,7 @@
 - 语义：链接永不过期；文件删除后 404；token 错误 403。
 - 吊销：轮换 `UPLOAD_PERMANENT_LINK_SECRET` 后所有已签发链接立即失效（建议定期轮换）。
 - 注意：`download-link` 无鉴权，请勿在日志中记录完整链接。
+- 消费：客户端可用 SDK `download_from_url()`（或任意 HTTP GET）流式下载；完整链接勿入库/入日志。
 
 ## 备份
 

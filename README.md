@@ -189,7 +189,7 @@ job = client.upload_directory(
 ```bash
 pip install pyuploadx          # 官方 PyPI：Python SDK（Python ≥ 3.11，第三方依赖仅 httpx）
 pip install pyuploadx-server   # 官方 PyPI：服务端（FastAPI，Docker 部署时通常无需 pip 安装）
-pip install dist/pyuploadx-0.2.0-py3-none-any.whl   # 或仓库直装（保留历史版本，见 dist/README.md）
+pip install dist/pyuploadx-0.6.0-py3-none-any.whl   # 或仓库直装（历史版本清单见 dist/README.md）
 ```
 
 SDK 与服务端为两个独立发布包（`pyuploadx` / `pyuploadx-server`）；发版与版本管理见
@@ -241,7 +241,8 @@ large = client.upload_large_file(
 print(info.download_url, info.expires_in)
 url = client.get_download_url(info.id, expires_seconds=3600)   # 过期后重新获取
 
-# 3) 使用 URL 下载（httpx 流式写盘，不占内存）
+# 3) 使用 URL 下载：SDK 流式写盘（支持 progress 回调），或原始 httpx 等价实现
+client.download_from_url(url, "/tmp/report.pdf")
 with httpx.stream("GET", url, follow_redirects=True) as resp:
     resp.raise_for_status()
     with open("/tmp/report.pdf", "wb") as f:

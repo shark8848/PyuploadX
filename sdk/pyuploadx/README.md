@@ -61,7 +61,11 @@ print(job.status, job.uploaded_files, job.failed_files, job.uploaded_bytes)
 info = client.get_file(info.id)                 # FileInfo：status/expires_at/legal_hold/completed_at
 lifecycle = client.get_lifecycle(info.id)       # 生效生命周期
 client.update_lifecycle(info.id, {"mode": "ttl", "ttl_seconds": 3600})
-client.download(info.id, "/tmp/README.md")      # URL 模式：预签名流式，Local 自动回退代理
+client.download(
+    info.id,
+    "/tmp/README.md",
+    progress=lambda done, total: print(f"{done}/{total}"),
+)  # URL 模式：预签名流式，Local 自动回退代理
 client.download_from_url(url, "/tmp/README.md") # 直接下载 URL（预签名/永久链接）
 client.delete(info.id)                          # 删除（幂等）
 ```
@@ -94,6 +98,21 @@ with httpx.stream("GET", url, follow_redirects=True) as resp:
         for chunk in resp.iter_bytes():
             f.write(chunk)
 ```
+
+## 永久下载链接（服务端能力）
+
+SDK 保持对外方法不变（未新增方法）；永久链接由服务端签发，客户端用 `download_from_url` 消费：
+
+```python
+import httpx
+link = httpx.post(
+    f"{base}/v1/files/{info.id}/permanent-link",
+    headers={"X-API-Key": "dev-key"},
+).json()["url"]                      # 永不过期（文件删除前有效）
+client.download_from_url(link, "/tmp/report.pdf")   # 流式下载，支持 progress 回调
+```
+
+详见 `docs/docs_sdk-dev.md` §11。
 
 ## 发版
 

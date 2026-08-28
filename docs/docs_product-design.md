@@ -1572,8 +1572,10 @@ pyuploadx/
 - `upload_directory()` → `DirectoryJobInfo`（`status`/`uploaded_files`/`uploaded_bytes`/`failed_files`/`skipped_files`；SDK 逐条上报条目结果，服务端聚合统计）。
 - `get_file(file_id)` → 文件最新 `FileInfo`；`get_upload(upload_id)` → 分片会话最新状态；`get_directory_job(job_id)` → 目录任务最新状态。
 - `get_lifecycle(file_id)` / `update_lifecycle(...)` / `extend_lifecycle(...)` / `set_legal_hold(...)` → 生命周期查询与变更。
-- `download(file_id, dest, *, use_url=True, ...)` → URL 模式流式下载（预签名 URL，Local 自动回退
-  代理）；`download_from_url(url, dest)` 直接下载任意 URL（预签名/永久链接）；`delete(file_id)` 幂等删除。
+- `download(file_id, dest, *, use_url=True, expires_seconds=None, progress=None)` → URL 模式流式下载
+  （预签名 URL，Local 自动回退代理）；`download_from_url(url, dest, *, progress=None)` 直接下载任意
+  URL（预签名/永久链接）。两者均逐块写盘不整体缓冲，`progress(written, total)` 可选回调；
+  `delete(file_id)` 幂等删除。
 
 ```python
 info = client.upload_file("./README.md", bucket="app-default")
