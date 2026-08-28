@@ -206,7 +206,8 @@ python -m pytest tests/unit tests/integration -q      # 全量（S3 套件需 UP
 
 ## 11. 永久下载链接（服务端能力）
 
-SDK 未新增方法（保持对外定义不变）；永久链接通过服务端 API 获取：
+永久链接的**创建**未封装为 SDK 方法（保持服务端 API 直调，未新增创建接口）；
+消费侧由 v0.6.0 新增的 `download_from_url()` 与 `download(..., use_url=True)` 支持（向后兼容）：
 
 ```bash
 # 创建永久链接（需鉴权）→ 返回永不过期的下载 URL

@@ -101,7 +101,8 @@ with httpx.stream("GET", url, follow_redirects=True) as resp:
 
 ## 永久下载链接（服务端能力）
 
-SDK 保持对外方法不变（未新增方法）；永久链接由服务端签发，客户端用 `download_from_url` 消费：
+永久链接的**创建**未封装为 SDK 方法（保持服务端 API 直调）；消费侧由 v0.6.0 新增的
+`download_from_url()` 流式下载：
 
 ```python
 import httpx
