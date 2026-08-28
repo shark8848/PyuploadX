@@ -182,6 +182,15 @@ job = client.upload_directory(
 )
 ```
 
+### 安装
+
+```bash
+pip install pyuploadx          # 官方 PyPI（Python ≥ 3.11）
+pip install dist/pyuploadx-0.1.0-py3-none-any.whl   # 或仓库直装（保留历史版本，见 dist/README.md）
+```
+
+发版与版本管理见 [docs/docs_product-design.md §37](docs/docs_product-design.md)。
+
 ## REST API 摘要
 
 ```text

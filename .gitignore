@@ -16,3 +16,9 @@ docs/assets/png/
 # Playwright artifacts
 portal/test-results/
 portal/playwright-report/
+
+# PyPI credentials (never commit)
+config/pypi.env
+
+# Build artifacts
+build/
