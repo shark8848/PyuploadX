@@ -3055,32 +3055,41 @@ WAF / Load Balancer
 
 ---
 
-# 37. SDK 发布与版本管理
+# 37. 发布与版本管理
+
+SDK 与服务端拆分为两个独立发布包：
+
+- `pyuploadx`：Python 客户端 SDK（构建于 `sdk/pyuploadx/`，第三方依赖仅 `httpx`）。
+- `pyuploadx-server`：FastAPI 服务端（构建于仓库根，包含 `app/` 与 `upload_service/`）。
 
 ## 37.1 发布目标
 
-- **PyPI**：`pyuploadx` 分发（Python SDK + 服务端），`pip install pyuploadx`。
+- **PyPI**：`pip install pyuploadx` / `pip install pyuploadx-server`。
 - **仓库发布产物**：`dist/` 保存全部历史版本的 wheel 与 sdist，随仓库提交并推送
   `origin`（GitHub）与 `tiancloud`（内部镜像），不得清理旧版本。
-- 每次发版打标签 `vX.Y.Z`，并同步更新 `dist/README.md` 版本索引。
+- 每次发版打标签（SDK `vX.Y.Z`，服务端 `server-vX.Y.Z`），并同步更新
+  `dist/README.md` 版本索引。
 
 ## 37.2 版本号
 
-版本号单一来源为 `pyproject.toml` 的 `version`，与 `sdk/pyuploadx/__init__.py` 的
-`__version__` 保持一致。`scripts/publish-pypi.sh` 支持 `PYUPX_VERSION` 临时覆盖版本
-（发布后自动还原）。
+- SDK：`sdk/pyuploadx/pyproject.toml` 的 `version`，与 `sdk/pyuploadx/__init__.py` 的
+  `__version__` 保持一致。
+- 服务端：根 `pyproject.toml` 的 `version`。
+- `scripts/publish-pypi.sh` 支持 `PYUPX_VERSION`、`scripts/publish-pypi-server.sh` 支持
+  `PYUPX_SERVER_VERSION` 临时覆盖版本（发布后自动还原）。
 
 ## 37.3 发布步骤
 
-1. 更新版本号（`pyproject.toml` + `sdk/pyuploadx/__init__.py`）。
+1. 更新对应包的版本号。
 2. `cp config/pypi.env.example config/pypi.env`，填入 PyPI API Token
    （`config/pypi.env` 已被 `.gitignore` 排除，禁止入库）。
-3. `bash scripts/publish-pypi.sh`：构建 wheel/sdist 到 `dist/`（保留历史）并上传 PyPI；
+3. `bash scripts/publish-pypi.sh` 发布 SDK；`bash scripts/publish-pypi-server.sh`
+   发布服务端。两者均：构建 wheel/sdist 到 `dist/`（保留历史）并上传 PyPI；
    `--test` 上传 TestPyPI，`--skip-build` 复用已有产物。
-4. 提交 `dist/` 产物与文档变更，打标签 `vX.Y.Z`，推送分支与标签到两个远程仓库。
+4. 提交 `dist/` 产物与文档变更，打标签，推送分支与标签到两个远程仓库。
 
 ## 37.4 产物验证
 
 - `twine check dist/*` 校验元数据与描述渲染。
 - 安装验证：`pip install dist/pyuploadx-X.Y.Z-py3-none-any.whl` 后
-  `import pyuploadx` 并检查 `__version__`。
+  `import pyuploadx` 并检查 `__version__`；服务端同理验证 `pyuploadx_server` 包。

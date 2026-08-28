@@ -3,13 +3,23 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyuploadx"
+name = "pyuploadx-server"
 version = "0.1.0"
-description = "PyUploadX - file and directory upload service (FastAPI backend + Python SDK)"
+description = "PyUploadX file and directory upload service (FastAPI backend)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "PyUploadX Contributors" }]
+keywords = ["upload", "fastapi", "multipart", "resume", "directory-upload", "s3", "minio"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+]
 dependencies = [
     "fastapi>=0.110,<1",
     "uvicorn[standard]>=0.29,<1",
@@ -40,8 +50,8 @@ dev = [
 upload-service = "app.cli:main"
 
 [tool.setuptools.packages.find]
-where = [".", "sdk"]
-include = ["app*", "upload_service*", "pyuploadx*"]
+where = ["."]
+include = ["app*", "upload_service*"]
 exclude = ["app*Zone*"]
 
 [tool.pytest.ini_options]

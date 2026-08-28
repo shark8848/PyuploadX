@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# publish-pypi.sh — Build and upload pyuploadx (Python SDK + service) to PyPI.
+# publish-pypi.sh — Build and upload the pyuploadx Python SDK to PyPI.
+#
+# The SDK distribution builds from sdk/pyuploadx (package pyuploadx, deps: httpx).
+# The server distribution is published separately by publish-pypi-server.sh.
 #
 # Usage:
 #   ./scripts/publish-pypi.sh                          # Full build + upload
-#   PYUPX_VERSION=0.2.0 ./scripts/publish-pypi.sh      # Specify version
+#   PYUPX_VERSION=0.3.0 ./scripts/publish-pypi.sh      # Specify version
 #   ./scripts/publish-pypi.sh --test                   # Upload to TestPyPI
 #   ./scripts/publish-pypi.sh --skip-build             # Reuse existing dist/
 #   ./scripts/publish-pypi.sh --no-skip-existing       # Fail if version exists
@@ -11,6 +14,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+BUILD_DIR="$ROOT_DIR/sdk/pyuploadx"
 CONFIG_FILE="$ROOT_DIR/config/pypi.env"
 
 # ---------------------------------------------------------------------------
@@ -36,7 +40,7 @@ for arg in "$@"; do
             echo "  --test              Upload to TestPyPI instead of PyPI"
             echo ""
             echo "Environment variables:"
-            echo "  PYUPX_VERSION  Override package version (default: pyproject.toml)"
+            echo "  PYUPX_VERSION  Override SDK version (default: sdk/pyuploadx/pyproject.toml)"
             exit 0
             ;;
         *)
@@ -78,16 +82,14 @@ fi
 # ---------------------------------------------------------------------------
 # Version override
 # ---------------------------------------------------------------------------
-CURRENT_VERSION=$(grep -m1 '^version' "$ROOT_DIR/pyproject.toml" | sed 's/.*"\(.*\)".*/\1/')
+CURRENT_VERSION=$(grep -m1 '^version' "$BUILD_DIR/pyproject.toml" | sed 's/.*"\(.*\)".*/\1/')
 PACKAGE_VERSION="${PYUPX_VERSION:-$CURRENT_VERSION}"
 
 echo "========================================"
-echo " pyuploadx publish"
+echo " pyuploadx (SDK) publish"
 echo " Version:    $PACKAGE_VERSION"
 echo " Repository: $REPOSITORY_URL"
 echo "========================================"
-
-cd "$ROOT_DIR"
 
 # ---------------------------------------------------------------------------
 # Build
@@ -96,15 +98,15 @@ if [ "$SKIP_BUILD" = false ]; then
     echo ""
     echo ">>> Cleaning build dirs and current-version artifacts only..."
     echo "    (dist/ keeps historical version artifacts; never wipe them)"
-    rm -rf build/ *.egg-info src/*.egg-info sdk/*.egg-info
-    rm -f "dist/pyuploadx-${PACKAGE_VERSION}-"*.whl "dist/pyuploadx-${PACKAGE_VERSION}.tar.gz"
+    rm -rf "$BUILD_DIR/build" "$BUILD_DIR"/*.egg-info "$BUILD_DIR/__pycache__"
+    rm -f "$ROOT_DIR/dist/pyuploadx-${PACKAGE_VERSION}-"*.whl "$ROOT_DIR/dist/pyuploadx-${PACKAGE_VERSION}.tar.gz"
 
     # Temporarily override version if PYUPX_VERSION is set
     RESTORE_VERSION=false
     if [ -n "${PYUPX_VERSION:-}" ] && [ "$PYUPX_VERSION" != "$CURRENT_VERSION" ]; then
         echo ">>> Overriding version: $CURRENT_VERSION → $PYUPX_VERSION"
-        sed -i "s/^version = \".*\"/version = \"$PYUPX_VERSION\"/" pyproject.toml
-        sed -i "s/^__version__ = \".*\"/__version__ = \"$PYUPX_VERSION\"/" sdk/pyuploadx/__init__.py
+        sed -i "s/^version = \".*\"/version = \"$PYUPX_VERSION\"/" "$BUILD_DIR/pyproject.toml"
+        sed -i "s/^__version__ = \".*\"/__version__ = \"$PYUPX_VERSION\"/" "$BUILD_DIR/__init__.py"
         RESTORE_VERSION=true
     fi
 
@@ -112,25 +114,25 @@ if [ "$SKIP_BUILD" = false ]; then
     python -m pip install --upgrade build twine --quiet
 
     echo ">>> Building wheel + sdist..."
-    python -m build
+    (cd "$BUILD_DIR" && python -m build --outdir "$ROOT_DIR/dist")
 
     # Restore original version if we changed it
     if [ "$RESTORE_VERSION" = true ]; then
-        sed -i "s/^version = \".*\"/version = \"$CURRENT_VERSION\"/" pyproject.toml
-        sed -i "s/^__version__ = \".*\"/__version__ = \"$CURRENT_VERSION\"/" sdk/pyuploadx/__init__.py
+        sed -i "s/^version = \".*\"/version = \"$CURRENT_VERSION\"/" "$BUILD_DIR/pyproject.toml"
+        sed -i "s/^__version__ = \".*\"/__version__ = \"$CURRENT_VERSION\"/" "$BUILD_DIR/__init__.py"
     fi
 else
     echo ""
     echo ">>> Skipping build (--skip-build), using existing dist/"
-    if [ ! -d dist ] || [ -z "$(ls -A dist/*.whl 2>/dev/null)" ]; then
-        echo "ERROR: No .whl found in dist/. Run without --skip-build first."
+    if [ ! -d dist ] || [ -z "$(ls -A dist/pyuploadx-*.whl 2>/dev/null)" ]; then
+        echo "ERROR: No pyuploadx wheel found in dist/. Run without --skip-build first."
         exit 1
     fi
 fi
 
 echo ""
 echo ">>> Artifacts:"
-ls -lh dist/
+ls -lh dist/pyuploadx-*
 
 # ---------------------------------------------------------------------------
 # Upload
@@ -149,10 +151,10 @@ if [ "$SKIP_EXISTING" = true ]; then
     TWINE_ARGS+=(--skip-existing)
 fi
 
-TWINE_ARGS+=(dist/*.whl dist/*.tar.gz)
+TWINE_ARGS+=(dist/pyuploadx-*.whl dist/pyuploadx-*.tar.gz)
 
 python -m twine "${TWINE_ARGS[@]}"
 
 echo ""
-echo "✅ Published pyuploadx $PACKAGE_VERSION to $REPOSITORY_URL"
+echo "✅ Published pyuploadx (SDK) $PACKAGE_VERSION to $REPOSITORY_URL"
 echo "   NOTE: dist/ artifacts are committed to the repo (all historical versions retained)."

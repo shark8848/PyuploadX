@@ -6,9 +6,14 @@ import os
 import tempfile
 from pathlib import Path
 
+import sys
+
 import pytest
 
 TEST_STATE: dict[str, str] = {}
+
+# SDK 独立打包后不再随服务端安装；测试直接从源码导入（sdk/ 下即 pyuploadx 包）
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sdk"))
 
 
 def _configure_env() -> Path:

@@ -185,11 +185,13 @@ job = client.upload_directory(
 ### 安装
 
 ```bash
-pip install pyuploadx          # 官方 PyPI（Python ≥ 3.11）
-pip install dist/pyuploadx-0.1.0-py3-none-any.whl   # 或仓库直装（保留历史版本，见 dist/README.md）
+pip install pyuploadx          # 官方 PyPI：Python SDK（Python ≥ 3.11，第三方依赖仅 httpx）
+pip install pyuploadx-server   # 官方 PyPI：服务端（FastAPI，Docker 部署时通常无需 pip 安装）
+pip install dist/pyuploadx-0.2.0-py3-none-any.whl   # 或仓库直装（保留历史版本，见 dist/README.md）
 ```
 
-发版与版本管理见 [docs/docs_product-design.md §37](docs/docs_product-design.md)。
+SDK 与服务端为两个独立发布包（`pyuploadx` / `pyuploadx-server`）；发版与版本管理见
+[docs/docs_product-design.md §37](docs/docs_product-design.md)。
 
 ## REST API 摘要
 

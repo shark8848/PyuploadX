@@ -7,7 +7,10 @@ PyUploadX is an early-stage file and directory upload service: a FastAPI backend
 - `docs/docs_product-design.md` — product, API, deployment, and testing spec; planned module layout in §31.
 - `docs/docs_assets_svg_*.svg` — architecture diagram sources, rendered to PNGs.
 - `scripts/render_diagrams.py` — deterministic SVG→PNG renderer with freshness checking.
-- `pyproject.toml` — Python metadata; currently only the `docs` extra (`CairoSVG`).
+- `pyproject.toml` — 服务端包 `pyuploadx-server` 元数据（含 `docs`/`dev` extras、`upload-service` 命令与 pytest/ruff 配置）。
+- `sdk/pyuploadx/pyproject.toml` — SDK 包 `pyuploadx` 元数据（第三方依赖仅 `httpx`）。
+- `dist/` — 发布产物（wheel + sdist，全部历史版本保留，随仓库提交并推送两个远程）。
+- `scripts/publish-pypi.sh` / `scripts/publish-pypi-server.sh` — SDK / 服务端 PyPI 发布脚本（凭据在 `config/pypi.env`，已 gitignore）。
 - Planned modules (spec §31): `app/` (FastAPI service), `sdk/pyuploadx/` (SDK), `portal/` (React UI). Put new code under this layout and keep the spec in sync.
 
 ## Build, Test, and Development Commands
@@ -27,7 +30,7 @@ PyUploadX is an early-stage file and directory upload service: a FastAPI backend
 
 ## Testing Guidelines
 
-- No automated tests exist yet; follow the test plan in spec §29 (pytest expected for backend and SDK) when adding the first suites.
+- Automated tests live under `tests/` (pytest; spec §29). SDK tests import `pyuploadx` from source via `tests/conftest.py`, since the SDK is packaged separately.
 - Keep generated artifacts verifiable: `--check` must pass before committing diagram changes.
 
 ## Commit & Pull Request Guidelines
