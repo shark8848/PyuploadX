@@ -31,6 +31,8 @@ export function UploadPage({ config }: Props) {
   const [items, setItems] = useState<QueueFile[]>([]);
   const [busy, setBusy] = useState(false);
   const workers = useRef(new Set<string>());
+  // 本次会话内已选中的文件 blob；页面刷新后丢失，需用户重新选择（docs 18.4）。
+  const blobs = useRef(new Map<string, File>());
 
   useEffect(() => {
     void loadQueued().then(setItems);
@@ -58,7 +60,10 @@ export function UploadPage({ config }: Props) {
         totalParts: Math.max(1, Math.ceil(file.size / partSize)),
         completedParts: [],
       }));
-      entries.forEach((entry) => void persist(entry));
+      entries.forEach((entry, index) => {
+        void persist(entry);
+        blobs.current.set(entry.id, files[index]);
+      });
       void refresh();
     },
     [bucket, prefix, lifecycle, config, refresh],
@@ -72,9 +77,13 @@ export function UploadPage({ config }: Props) {
       workers.current.add(entry.id);
       setBusy(true);
       try {
-        const file = await fetchFromInput(entry);
+        const file = blobs.current.get(entry.id) ?? null;
         if (!file) {
-          throw new Error("file unavailable after refresh");
+          // 页面刷新后 blob 丢失：提示用户重新选择原文件后再继续。
+          entry.needsFile = true;
+          await persist(entry);
+          void refresh();
+          return;
         }
         await uploadQueuedFile(file, entry, () => void refresh());
       } catch (error) {
@@ -90,12 +99,32 @@ export function UploadPage({ config }: Props) {
     [refresh],
   );
 
-  // Resume any pending/paused tasks after refresh.
+  const reselect = useCallback(
+    async (entry: QueueFile) => {
+      const file = await fetchFromInput(entry);
+      if (file) {
+        blobs.current.set(entry.id, file);
+        entry.needsFile = false;
+        await persist(entry);
+        void runUpload(entry);
+      }
+    },
+    [runUpload],
+  );
+
+  // Resume pending tasks after refresh; uploads interrupted mid-flight are
+  // downgraded to pending and re-attach their file via reselect (docs 18.4).
   useEffect(() => {
     void loadQueued().then((queued) => {
-      queued
-        .filter((entry) => entry.status === "pending")
-        .forEach((entry) => void runUpload(entry));
+      queued.forEach((entry) => {
+        if (entry.status === "pending" || entry.status === "uploading") {
+          if (entry.status === "uploading") {
+            entry.status = "pending";
+            void persist(entry);
+          }
+          void runUpload(entry);
+        }
+      });
     });
   }, [runUpload]);
 
@@ -138,6 +167,7 @@ export function UploadPage({ config }: Props) {
         items={items}
         onPause={(item) => void pauseUpload(item).then(refresh)}
         onResume={(item) => void runUpload(item)}
+        onReselect={(item) => void reselect(item)}
         onCancel={(item) => void cancelUpload(item).then(refresh)}
         onRetry={(item) => void runUpload(item)}
       />
@@ -146,14 +176,25 @@ export function UploadPage({ config }: Props) {
 }
 
 async function fetchFromInput(entry: QueueFile): Promise<File | null> {
+  // 目录条目需要 webkitdirectory 才能保留相对路径（docs 18.4）。
   const input = document.createElement("input");
   input.type = "file";
-  const selected = await new Promise<FileList | null>((resolve) => {
-    input.onchange = () => resolve(input.files);
-    input.click();
-  });
-  if (!selected) {
-    return null;
+  if (entry.name.includes("/")) {
+    input.setAttribute("webkitdirectory", "");
   }
-  return Array.from(selected).find((file) => file.name === entry.name) ?? null;
+  input.style.display = "none";
+  document.body.appendChild(input);
+  try {
+    const selected = await new Promise<FileList | null>((resolve) => {
+      input.onchange = () => resolve(input.files);
+      // 必须挂载到 DOM，否则 click() 不会打开文件选择器。
+      input.click();
+    });
+    if (!selected) {
+      return null;
+    }
+    return Array.from(selected).find((file) => file.name === entry.name) ?? null;
+  } finally {
+    input.remove();
+  }
 }

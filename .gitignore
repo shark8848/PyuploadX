@@ -12,3 +12,7 @@ __pycache__/
 
 # Generated diagram output
 docs/assets/png/
+
+# Playwright artifacts
+portal/test-results/
+portal/playwright-report/

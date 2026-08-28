@@ -102,6 +102,20 @@ python -m pytest tests/integration/test_s3_storage.py -q
 
 未设置 `UPLOAD_MINIO_TEST=1` 时该套件自动跳过；CI 内置 MinIO 服务并始终运行它。
 
+### Portal E2E（Playwright）
+
+```bash
+cd portal
+npm ci
+npx playwright install chromium      # 首次运行需下载浏览器
+npx playwright test                   # 自动拉起 uvicorn(8000) 与 vite(5173)
+```
+
+E2E 覆盖登录与错误展示、文件/目录上传、生命周期策略、刷新后队列恢复（§29.6）。
+本地默认 `E2E_API_URL=http://127.0.0.1:8000`、`E2E_PORTAL_URL=http://127.0.0.1:5173`，
+API Key 为 `e2e-key`（由 `portal/playwright.config.ts` 注入，SQLite + local 存储）。
+CI 的 portal job 会安装浏览器依赖并执行同一套测试。
+
 ## 配置
 
 配置优先级：代码默认值 < `config/config.yaml` < 环境变量（`UPLOAD_SECTION__FIELD`）< 命令行。

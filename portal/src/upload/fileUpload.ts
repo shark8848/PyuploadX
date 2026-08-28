@@ -23,6 +23,7 @@ export interface QueueFile {
   totalParts: number;
   completedParts: number[];
   error?: string;
+  needsFile?: boolean;
 }
 
 class UploadDB extends Dexie {

@@ -124,3 +124,15 @@ jobs:
       - name: Build
         working-directory: portal
         run: npm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Python deps (E2E API server)
+        run: pip install -e ".[dev]"
+      - name: Install Playwright browsers
+        working-directory: portal
+        run: npx playwright install --with-deps chromium
+      - name: E2E
+        working-directory: portal
+        run: npx playwright test

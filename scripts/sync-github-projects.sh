@@ -12,31 +12,46 @@ AUTH=(-H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json")
 OWNER=shark8848
 PROJ_NUMBER=4
 
-gql() { curl -sS --max-time 30 "${AUTH[@]}" "$API" -d "$1"; }
+gql() { # GitHub API 网络抖动时自动重试 3 次
+  local body
+  for _attempt in 1 2 3 4 5; do
+    body=$(curl -sS --retry 2 --retry-all-errors --retry-delay 2 --max-time 45 "${AUTH[@]}" "$API" -d "$1") && [ -n "$body" ] && { printf '%s' "$body"; return 0; }
+    sleep 2
+  done
+  return 1
+}
 
-# 项目 node ID
-PROJ=$(gql '{"query":"query{user(login:\"'"$OWNER"'\"){projectV2(number:'"$PROJ_NUMBER"'){id title}}}"}' \
-  | jq -r '.data.user.projectV2.id')
-[ -n "$PROJ" ] && [ "$PROJ" != "null" ] || { echo "FATAL: cannot resolve project #$PROJ_NUMBER"; exit 1; }
+# 一次性取回：项目 id、Status/Priority 字段与选项、已有条目（减少网络往返）。
+DISCOVERY=$(gql '{"query":"query{user(login:\"'"$OWNER"'\"){projectV2(number:'"$PROJ_NUMBER"'){id title fields(first:50){nodes{... on ProjectV2SingleSelectField{name id options{id name}}}} items(first:100){nodes{id content{... on DraftIssue{title}}}}}}}"}') \
+  || { echo "FATAL: discovery query failed (network or permission)" >&2; exit 1; }
+PROJ=$(jq -r '.data.user.projectV2.id' <<<"$DISCOVERY")
+[ -n "$PROJ" ] && [ "$PROJ" != "null" ] || { echo "FATAL: cannot resolve project #$PROJ_NUMBER" >&2; exit 1; }
 
-# 字段 ID 与选项（Status / Priority，按名称匹配）
-F_STATUS=$(gql '{"query":"query{node(id:\"'"$PROJ"'\"){... on ProjectV2{fields(first:50){nodes{... on ProjectV2SingleSelectField{name id}}}}}}"}' \
-  | jq -r '.data.node.fields.nodes[] | select(.name=="Status") | .id' | head -1)
-F_PRIO=$(gql '{"query":"query{node(id:\"'"$PROJ"'\"){... on ProjectV2{fields(first:50){nodes{... on ProjectV2SingleSelectField{name id}}}}}}"}' \
-  | jq -r '.data.node.fields.nodes[] | select(.name=="Priority") | .id' | head -1)
+F_STATUS=$(jq -r '.data.user.projectV2.fields.nodes[] | select(.name=="Status") | .id' <<<"$DISCOVERY" | head -1)
+F_PRIO=$(jq -r '.data.user.projectV2.fields.nodes[] | select(.name=="Priority") | .id' <<<"$DISCOVERY" | head -1)
 
 declare -A STATUS_OPT PRIO_OPT
-while IFS=$'\t' read -r fname fid oname oid; do
+while IFS=$'\t' read -r fname fid oname; do
   [ -z "$fname" ] && continue
-  if [ "$fname" = "Status" ]; then STATUS_OPT[$oname]=$oid; else PRIO_OPT[$oname]=$oid; fi
-done < <(gql '{"query":"query{node(id:\"'"$PROJ"'\"){... on ProjectV2{fields(first:50){nodes{... on ProjectV2SingleSelectField{name options{name id}}}}}}}"}' \
-  | jq -r '.data.node.fields.nodes[] | select(.name=="Status" or .name=="Priority") | .name as $f | .options[] | [$f, (.id), .name] | @tsv')
+  if [ "$fname" = "Status" ]; then STATUS_OPT[$oname]=$fid; else PRIO_OPT[$oname]=$fid; fi
+done < <(jq -r '.data.user.projectV2.fields.nodes[] | select(.name=="Status" or .name=="Priority") | .name as $f | .options[] | [$f, (.id), .name] | @tsv' <<<"$DISCOVERY")
 
-declare -A ST=([未开始]="${STATUS_OPT[未开始]}" [进行中]="${STATUS_OPT[进行中]}" [已完成]="${STATUS_OPT[已完成]}")
+if [ -z "${STATUS_OPT[Backlog]:-}" ] && [ -z "${STATUS_OPT[未开始]:-}" ]; then
+  echo "FATAL: Status options not resolved (network or permission)" >&2
+  exit 1
+fi
+
 declare -A PR=([P0]="${PRIO_OPT[P0]}" [P1]="${PRIO_OPT[P1]}" [P2]="${PRIO_OPT[P2]}")
 
-mapfile -t EXIST < <(gql '{"query":"query{node(id:\"'"$PROJ"'\"){... on ProjectV2{items(first:100){nodes{id content{... on DraftIssue{title}}}}}}}"}' \
-  | jq -r '.data.node.items.nodes[] | [.id, .content.title] | @tsv')
+resolve_status() { # tsv_status -> option id；看板选项可能是中文或英文，按别名匹配
+  case "$1" in
+    未开始) for n in 未开始 Backlog Todo; do [ -n "${STATUS_OPT[$n]:-}" ] && { echo "${STATUS_OPT[$n]}"; return; }; done ;;
+    进行中) for n in 进行中 "In progress" "In Progress" Doing; do [ -n "${STATUS_OPT[$n]:-}" ] && { echo "${STATUS_OPT[$n]}"; return; }; done ;;
+    已完成) for n in 已完成 Done; do [ -n "${STATUS_OPT[$n]:-}" ] && { echo "${STATUS_OPT[$n]}"; return; }; done ;;
+  esac
+}
+
+mapfile -t EXIST < <(jq -r '.data.user.projectV2.items.nodes[] | [.id, .content.title] | @tsv' <<<"$DISCOVERY")
 declare -A IDS=()
 for row in "${EXIST[@]}"; do IDS[${row#*$'\t'}]=${row%%$'\t'*}; done
 
@@ -58,7 +73,12 @@ while IFS=$'\t' read -r title status prio; do
     item=$(create_item "$title")
     if [[ "$item" == ERR* ]]; then echo "FAIL create: $title -> $item"; fail=$((fail+1)); continue; fi
   fi
-  r=$(set_field "$item" "$F_STATUS" "${ST[$status]}")
+  st_opt=$(resolve_status "$status")
+  if [[ -z "$st_opt" ]]; then
+    echo "FAIL status: $title -> no Status option matching '$status'"
+    fail=$((fail+1)); continue
+  fi
+  r=$(set_field "$item" "$F_STATUS" "$st_opt")
   if [[ "$r" != ok ]]; then echo "FAIL status: $title -> $r"; fail=$((fail+1)); continue; fi
   if [[ -n "${prio:-}" && -n "${PR[$prio]:-}" && -n "$F_PRIO" ]]; then
     r=$(set_field "$item" "$F_PRIO" "${PR[$prio]}")

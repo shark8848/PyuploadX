@@ -6,6 +6,7 @@ interface Props {
   items: QueueFile[];
   onPause: (item: QueueFile) => void;
   onResume: (item: QueueFile) => void;
+  onReselect: (item: QueueFile) => void;
   onCancel: (item: QueueFile) => void;
   onRetry: (item: QueueFile) => void;
 }
@@ -18,7 +19,7 @@ const STATUS_LABEL: Record<QueueFile["status"], string> = {
   failed: "失败",
 };
 
-export function UploadQueue({ items, onPause, onResume, onCancel, onRetry }: Props) {
+export function UploadQueue({ items, onPause, onResume, onReselect, onCancel, onRetry }: Props) {
   if (items.length === 0) {
     return <p className="empty">暂无上传任务</p>;
   }
@@ -43,6 +44,9 @@ export function UploadQueue({ items, onPause, onResume, onCancel, onRetry }: Pro
             )}
             {item.status === "paused" && (
               <button onClick={() => onResume(item)}>继续</button>
+            )}
+            {item.needsFile && (
+              <button onClick={() => onReselect(item)}>重新选择</button>
             )}
             {item.status === "failed" && (
               <button onClick={() => onRetry(item)}>重试</button>
