@@ -2,7 +2,7 @@
 
 `pyuploadx` 是 PyUploadX 文件/目录上传服务的 Python 客户端 SDK，支持小文件 Proxy 上传、
 大文件 Multipart 分片 + 断点续传、目录上传（Manifest + `.uploadignore`）与生命周期策略。
-协议与状态机见 `docs/docs_product-design.md` §17/§12/§13。
+协议与状态机见 `docs/docs_product-design.md` §17/§12/§13；**完整开发文档（方法参考/模型/异常/测试/发版）见 [docs/docs_sdk-dev.md](../../docs/docs_sdk-dev.md)**。
 
 ## 安装
 

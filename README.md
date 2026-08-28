@@ -143,6 +143,8 @@ Reconcile Dry Run → Worker → 开放入口）、向后兼容的迁移与回�
 
 ## Python SDK
 
+完整 SDK 开发文档（方法参考、数据模型、异常映射、测试与发版）见 [docs/docs_sdk-dev.md](docs/docs_sdk-dev.md)。
+
 ```python
 from datetime import timedelta
 from pyuploadx import UploadClient, FileLifecycle

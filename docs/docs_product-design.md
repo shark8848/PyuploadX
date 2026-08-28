@@ -1430,6 +1430,8 @@ DATABASE_UNAVAILABLE
 
 # 17. Python Client SDK
 
+SDK 完整开发文档（方法参考、数据模型、异常映射、测试与发版）见 [docs/docs_sdk-dev.md](docs_sdk-dev.md)。
+
 ## 17.1 基础用法
 
 ```python
