@@ -87,8 +87,9 @@ def serialize_entry(entry: DirectoryUploadEntry) -> dict[str, Any]:
 
 
 class DirectoryUploadService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, setting_service=None) -> None:
         self.settings = settings
+        self.setting_service = setting_service
 
     async def create_job(
         self,
@@ -115,9 +116,14 @@ class DirectoryUploadService:
 
         effective_lifecycle: dict[str, Any] | None = None
         if self.settings.lifecycle.enabled:
+            server_default = (
+                await self.setting_service.get_lifecycle_default(session)
+                if self.setting_service is not None
+                else self.settings.lifecycle.default_policy.model_dump()
+            )
             effective_lifecycle = compute_effective_lifecycle(
                 requested=requested_lifecycle,
-                server_default=self.settings.lifecycle.default_policy.model_dump(),
+                server_default=server_default,
                 allow_client_override=self.settings.lifecycle.policy.allow_client_override,
                 permanent_allowed=self.settings.lifecycle.policy.permanent_allowed,
                 minimum_ttl_seconds=self.settings.lifecycle.policy.minimum_ttl_seconds,
@@ -138,7 +144,11 @@ class DirectoryUploadService:
             requested_lifecycle=requested_lifecycle,
             effective_lifecycle=effective_lifecycle,
             version=1,
-            expires_at=_now() + timedelta(seconds=self.settings.uploads.session.expires_after_seconds),
+            expires_at=_now() + timedelta(
+                seconds=await self.setting_service.get_session_expiry(session)
+                if self.setting_service is not None
+                else self.settings.uploads.session.expires_after_seconds
+            ),
         )
         session.add(job)
         await session.flush()

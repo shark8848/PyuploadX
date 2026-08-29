@@ -73,10 +73,11 @@ def serialize_session(session: UploadSession) -> dict[str, Any]:
 
 
 class UploadService:
-    def __init__(self, settings: Settings, storage: StorageAdapter, bucket_service) -> None:
+    def __init__(self, settings: Settings, storage: StorageAdapter, bucket_service, setting_service) -> None:
         self.settings = settings
         self.storage = storage
         self.bucket_service = bucket_service
+        self.setting_service = setting_service
 
     def _validate_object_key(self, object_key: str) -> str:
         return normalize_relative_path(object_key, maximum_bytes=1024)
@@ -109,7 +110,7 @@ class UploadService:
     ) -> UploadSession:
         await self._validate_bucket(session, identity, bucket)
         safe_key = self._validate_object_key(object_key)
-        maximum_bytes = self.settings.uploads.file_size.maximum_bytes
+        maximum_bytes = await self.setting_service.get_max_file_size(session)
         if total_size < 0:
             raise ApiError("INVALID_FILE_SIZE", "total_size must be non-negative.", status_code=422)
         if total_size > maximum_bytes:
@@ -122,7 +123,7 @@ class UploadService:
 
         multipart = self.settings.uploads.multipart
         if part_size is None:
-            part_size = multipart.default_part_size_bytes
+            part_size = await self.setting_service.get_default_part_size(session)
         if not (multipart.minimum_part_size_bytes <= part_size <= multipart.maximum_part_size_bytes):
             raise InvalidPartSizeError(
                 part_size, multipart.minimum_part_size_bytes, multipart.maximum_part_size_bytes
@@ -135,9 +136,10 @@ class UploadService:
                 status_code=422,
             )
 
-        mode_value = upload_mode or self.settings.uploads.default_mode
+        mode_value = upload_mode or await self.setting_service.get_default_mode(session)
         if mode_value == UploadMode.automatic.value:
-            use_multipart = multipart.enabled and total_size > self.settings.uploads.direct_upload_threshold_bytes
+            threshold = await self.setting_service.get_direct_threshold(session)
+            use_multipart = multipart.enabled and total_size > threshold
             mode = UploadMode.presigned if use_multipart else UploadMode.proxy
         elif mode_value in (UploadMode.proxy.value, UploadMode.presigned.value):
             mode = UploadMode(mode_value)
@@ -155,7 +157,7 @@ class UploadService:
         if self.settings.lifecycle.enabled:
             effective_lifecycle = compute_effective_lifecycle(
                 requested=lifecycle,
-                server_default=self.settings.lifecycle.default_policy.model_dump(),
+                server_default=await self.setting_service.get_lifecycle_default(session),
                 allow_client_override=self.settings.lifecycle.policy.allow_client_override,
                 permanent_allowed=self.settings.lifecycle.policy.permanent_allowed,
                 minimum_ttl_seconds=self.settings.lifecycle.policy.minimum_ttl_seconds,
@@ -196,7 +198,7 @@ class UploadService:
             requested_lifecycle=lifecycle,
             effective_lifecycle=effective_lifecycle,
             version=1,
-            expires_at=now + timedelta(seconds=self.settings.uploads.session.expires_after_seconds),
+            expires_at=now + timedelta(seconds=await self.setting_service.get_session_expiry(session)),
             last_activity_at=now,
             created_at=now,
             updated_at=now,
@@ -559,7 +561,7 @@ class UploadService:
         if upload.status in (UploadStatus.completed, UploadStatus.aborted, UploadStatus.expired):
             raise UploadStateConflictError("Cannot refresh a finished upload session.")
         now = _now()
-        lifetime = self.settings.uploads.session.expires_after_seconds
+        lifetime = await self.setting_service.get_session_expiry(session)
         if upload.created_at + timedelta(seconds=self.settings.uploads.session.maximum_lifetime_seconds) < now:
             raise UploadExpiredError()
         upload.expires_at = now + timedelta(seconds=lifetime)

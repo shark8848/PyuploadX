@@ -40,10 +40,10 @@ class AppState:
     def __post_init__(self) -> None:
         self.bucket_service = BucketService(self.settings, self.storage)
         self.setting_service = SettingService(self.settings)
-        self.upload_service = UploadService(self.settings, self.storage, self.bucket_service)
-        self.file_service = FileService(self.settings, self.storage, self.bucket_service)
+        self.upload_service = UploadService(self.settings, self.storage, self.bucket_service, self.setting_service)
+        self.file_service = FileService(self.settings, self.storage, self.bucket_service, self.setting_service)
         self.lifecycle_service = LifecycleService(self.settings)
-        self.directory_service = DirectoryUploadService(self.settings)
+        self.directory_service = DirectoryUploadService(self.settings, self.setting_service)
 
 
 def build_app_state(settings: Settings) -> AppState:

@@ -90,3 +90,88 @@ def test_update_settings(client, auth_headers):
         json={"storage": {"default_bucket": "app-default", "presign_default_expires_seconds": 900}},
     )
     assert restore.status_code == 200
+
+
+def test_settings_uploads_and_lifecycle(client, auth_headers):
+    updated = client.put(
+        "/v1/settings",
+        headers=auth_headers,
+        json={
+            "uploads": {
+                "maximum_file_size_bytes": 4 * 1024 * 1024,
+                "direct_upload_threshold_bytes": 1024 * 1024,
+                "default_mode": "proxy",
+                "multipart": {"default_part_size_bytes": 8 * 1024 * 1024},
+                "session": {"expires_after_seconds": 3600},
+            },
+            "lifecycle": {
+                "default_policy": {"mode": "ttl", "action": "delete", "ttl_seconds": 7200}
+            },
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    uploads = updated.json()["uploads"]
+    assert uploads["maximum_file_size_bytes"] == 4 * 1024 * 1024
+    assert uploads["direct_upload_threshold_bytes"] == 1024 * 1024
+    assert uploads["default_mode"] == "proxy"
+    assert uploads["multipart"]["default_part_size_bytes"] == 8 * 1024 * 1024
+    assert uploads["session"]["expires_after_seconds"] == 3600
+    assert updated.json()["lifecycle"]["default_policy"] == {
+        "mode": "ttl",
+        "action": "delete",
+        "ttl_seconds": 7200,
+    }
+
+    cfg = client.get("/v1/client-config", headers=auth_headers).json()
+    assert cfg["uploads"]["maximum_file_size_bytes"] == 4 * 1024 * 1024
+    assert cfg["uploads"]["default_mode"] == "proxy"
+    assert cfg["uploads"]["direct_upload_threshold_bytes"] == 1024 * 1024
+    assert cfg["uploads"]["multipart"]["default_part_size_bytes"] == 8 * 1024 * 1024
+    assert cfg["uploads"]["session"]["expires_after_seconds"] == 3600
+    assert cfg["lifecycle"]["default_policy"]["ttl_seconds"] == 7200
+
+    # 还原默认值
+    restore = client.put(
+        "/v1/settings",
+        headers=auth_headers,
+        json={
+            "uploads": {
+                "maximum_file_size_bytes": 5 * 1024 * 1024 * 1024,
+                "direct_upload_threshold_bytes": 20 * 1024 * 1024,
+                "default_mode": "automatic",
+                "multipart": {"default_part_size_bytes": 8 * 1024 * 1024},
+                "session": {"expires_after_seconds": 86400},
+            },
+            "lifecycle": {
+                "default_policy": {"mode": "ttl", "action": "delete", "ttl_seconds": 2592000}
+            },
+        },
+    )
+    assert restore.status_code == 200
+
+
+def test_settings_invalid_values(client, auth_headers):
+    cases = [
+        {"uploads": {"default_mode": "unknown"}},
+        {"uploads": {"maximum_file_size_bytes": -1}},
+        {"uploads": {"multipart": {"default_part_size_bytes": 0}}},
+        {"uploads": {"session": {"expires_after_seconds": 5}}},
+        {"lifecycle": {"default_policy": {"mode": "bogus"}}},
+        {"lifecycle": {"default_policy": {"ttl_seconds": 1}}},
+    ]
+    for body in cases:
+        response = client.put("/v1/settings", headers=auth_headers, json=body)
+        assert response.status_code == 422, body
+
+
+def test_settings_storage_info_readonly(client, auth_headers):
+    got = client.get("/v1/settings", headers=auth_headers)
+    assert got.status_code == 200
+    info = got.json()["storage"]["info"]
+    assert info["backend"] in ("local", "s3")
+    assert "allowed_buckets" in info
+    assert "capabilities" in info
+    if info["backend"] == "local":
+        assert "root_path" in info
+    else:
+        assert "region" in info

@@ -55,10 +55,11 @@ def serialize_file(file_obj: FileObject) -> dict[str, Any]:
 
 
 class FileService:
-    def __init__(self, settings: Settings, storage: StorageAdapter, bucket_service) -> None:
+    def __init__(self, settings: Settings, storage: StorageAdapter, bucket_service, setting_service) -> None:
         self.settings = settings
         self.storage = storage
         self.bucket_service = bucket_service
+        self.setting_service = setting_service
 
     async def proxy_upload(
         self,
@@ -83,7 +84,7 @@ class FileService:
                 status_code=422,
             )
         safe_key = normalize_relative_path(object_key, maximum_bytes=1024)
-        if size_bytes > self.settings.uploads.file_size.maximum_bytes:
+        if size_bytes > await self.setting_service.get_max_file_size(session):
             raise ApiError(
                 "FILE_TOO_LARGE",
                 f"File size exceeds the maximum of {self.settings.uploads.file_size.maximum_bytes} bytes.",
@@ -99,7 +100,7 @@ class FileService:
         if self.settings.lifecycle.enabled:
             effective_lifecycle = compute_effective_lifecycle(
                 requested=lifecycle,
-                server_default=self.settings.lifecycle.default_policy.model_dump(),
+                server_default=await self.setting_service.get_lifecycle_default(session),
                 allow_client_override=self.settings.lifecycle.policy.allow_client_override,
                 permanent_allowed=self.settings.lifecycle.policy.permanent_allowed,
                 minimum_ttl_seconds=self.settings.lifecycle.policy.minimum_ttl_seconds,
