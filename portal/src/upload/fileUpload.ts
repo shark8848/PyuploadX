@@ -115,6 +115,7 @@ export async function uploadQueuedFile(
   entry.fileId = info.id;
   entry.progress = 1;
   await persist(entry);
+  onProgress(1);
   return info;
 }
 

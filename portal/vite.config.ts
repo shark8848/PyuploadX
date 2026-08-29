@@ -19,5 +19,19 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: false,
+    chunkSizeWarningLimit: 900,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: "vendor-react", test: /node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/ },
+            {
+              name: "vendor-antd",
+              test: /node_modules[\\/](antd|@ant-design|@rc-component|rc-)[\\/]/,
+            },
+          ],
+        },
+      },
+    },
   },
 });

@@ -58,6 +58,23 @@ export interface FileInfo {
   lifecycle_mode?: string;
   expires_at?: string;
   completed_at?: string;
+  created_at?: string;
+}
+
+export interface FilePage {
+  items: FileInfo[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ListFilesParams {
+  bucket?: string;
+  prefix?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+  sortBy?: "name" | "created_at";
 }
 
 export interface UploadSession {
@@ -80,6 +97,10 @@ let cachedConfig: ClientConfig | null = null;
 export function setApiToken(token: string | null): void {
   apiToken = token;
   cachedConfig = null;
+}
+
+export function verifyApiKey(key: string): Promise<unknown> {
+  return request("/v1/files?limit=1", { headers: { "X-API-Key": key } });
 }
 
 export function hasApiToken(): boolean {
@@ -219,6 +240,44 @@ export function resumeUpload(uploadId: string): Promise<{ missing_parts: number[
 
 export function downloadUrl(fileId: string): string {
   return `/v1/files/${fileId}/download`;
+}
+
+export async function downloadFile(fileId: string): Promise<Blob> {
+  const headers = new Headers();
+  if (apiToken) {
+    headers.set("X-API-Key", apiToken);
+  }
+  headers.set("X-Request-ID", crypto.randomUUID());
+  const response = await fetch(downloadUrl(fileId), { headers });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return response.blob();
+}
+
+export function listFiles(params: ListFilesParams = {}): Promise<FilePage> {
+  const query = new URLSearchParams();
+  if (params.bucket) {
+    query.set("bucket", params.bucket);
+  }
+  if (params.prefix) {
+    query.set("prefix", params.prefix);
+  }
+  if (params.status) {
+    query.set("status", params.status);
+  }
+  query.set("limit", String(params.limit ?? 50));
+  query.set("offset", String(params.offset ?? 0));
+  query.set("sort_by", params.sortBy ?? "name");
+  return request<FilePage>(`/v1/files?${query.toString()}`);
+}
+
+export function presignDownloadUrl(fileId: string, expiresSeconds = 900): Promise<{ url: string }> {
+  return request<{ url: string }>(`/v1/files/${fileId}/presign-download`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ expires_seconds: expiresSeconds }),
+  });
 }
 
 export function deleteFile(fileId: string): Promise<unknown> {

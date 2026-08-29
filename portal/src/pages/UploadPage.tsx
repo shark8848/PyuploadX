@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Input, Select, Space } from "antd";
 import * as api from "../api/client";
 import { FileDrop } from "../components/FileDrop";
 import { UploadQueue } from "../components/UploadQueue";
@@ -85,6 +86,29 @@ export function UploadPage({ config }: Props) {
           void refresh();
           return;
         }
+        // 小于阈值的小文件走单请求直传（POST /v1/files/upload），
+        // 与 SDK 行为一致；大文件才走分片（docs 16.4 上传模式）。
+        if (file.size <= config.uploads.direct_upload_threshold_bytes) {
+          const info = await api.uploadFile(
+            file,
+            {
+              bucket: entry.bucket,
+              objectKey: entry.objectKey,
+              lifecycle: entry.lifecycle,
+            },
+            (progress) => {
+              entry.progress = progress;
+              void persist(entry);
+              void refresh();
+            },
+          );
+          entry.status = "completed";
+          entry.fileId = info.id;
+          entry.progress = 1;
+          await persist(entry);
+          void refresh();
+          return;
+        }
         await uploadQueuedFile(file, entry, () => void refresh());
       } catch (error) {
         entry.status = "failed";
@@ -96,7 +120,7 @@ export function UploadPage({ config }: Props) {
         setBusy(false);
       }
     },
-    [refresh],
+    [config, refresh],
   );
 
   const reselect = useCallback(
@@ -128,40 +152,55 @@ export function UploadPage({ config }: Props) {
     });
   }, [runUpload]);
 
+  // Auto-start newly queued files; blob is still in memory this session.
+  // Files restored after a refresh have needsFile=true and wait for reselect.
+  useEffect(() => {
+    items.forEach((entry) => {
+      if (entry.status === "pending" && !entry.needsFile) {
+        void runUpload(entry);
+      }
+    });
+  }, [items, runUpload]);
+
   return (
     <div className="page">
       <h1>文件上传</h1>
-      <div className="controls">
-        <label>
-          Bucket
-          <select value={bucket} onChange={(event) => setBucket(event.target.value)}>
-            {config.uploads.allowed_buckets.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          目标前缀
-          <input
+      <Space wrap style={{ margin: "16px 0" }}>
+        <span>
+          Bucket：
+          <Select
+            value={bucket}
+            onChange={setBucket}
+            options={config.uploads.allowed_buckets.map((name) => ({ value: name, label: name }))}
+            style={{ width: 180 }}
+          />
+        </span>
+        <span>
+          目标前缀：
+          <Input
             value={prefix}
             onChange={(event) => setPrefix(event.target.value)}
             placeholder="例如 artists/10001"
+            allowClear
+            style={{ width: 220 }}
           />
-        </label>
-        <label>
-          生命周期
-          <select value={lifecycle ?? ""} onChange={(event) => setLifecycle(event.target.value || undefined)}>
-            <option value="">永久</option>
-            {config.lifecycle.allowed_modes.map((mode) => (
-              <option key={mode} value={JSON.stringify({ mode, ttl_seconds: 30 * 86400 })}>
-                {mode}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+        </span>
+        <span>
+          生命周期：
+          <Select
+            value={lifecycle ?? "permanent"}
+            onChange={(value) => setLifecycle(value === "permanent" ? undefined : value)}
+            options={[
+              { value: "permanent", label: "永久" },
+              ...config.lifecycle.allowed_modes.map((mode) => ({
+                value: JSON.stringify({ mode, ttl_seconds: 30 * 86400 }),
+                label: mode,
+              })),
+            ]}
+            style={{ width: 160 }}
+          />
+        </span>
+      </Space>
       <FileDrop onFiles={enqueueFiles} directory disabled={busy} />
       <UploadQueue
         items={items}

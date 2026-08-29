@@ -1,48 +1,117 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Button, ConfigProvider, Layout as AntLayout, Menu, Spin } from "antd";
+import { FolderOpenOutlined, LogoutOutlined, UploadOutlined } from "@ant-design/icons";
+import zhCN from "antd/locale/zh_CN";
 import * as api from "./api/client";
+import LoginPage from "./pages/LoginPage";
 import { UploadPage } from "./pages/UploadPage";
+import FilesPage from "./pages/FilesPage";
+
+const { Header, Content } = AntLayout;
+
+type AuthState = "loading" | "login" | "ready";
+
+function Shell({
+  config,
+  onLogout,
+}: {
+  config: api.ClientConfig;
+  onLogout: () => void;
+}) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  return (
+    <AntLayout style={{ minHeight: "100vh" }}>
+      <Header
+        style={{
+          background: "#fff",
+          borderBottom: "1px solid #f0f0f0",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 24px",
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: "#1f2937" }}>PyUploadX</div>
+          <Menu
+            mode="horizontal"
+            selectedKeys={[location.pathname]}
+            items={[
+              { key: "/upload", icon: <UploadOutlined />, label: "上传" },
+              { key: "/files", icon: <FolderOpenOutlined />, label: "文件浏览" },
+            ]}
+            onClick={(entry) => navigate(entry.key)}
+            style={{ borderBottom: "none", minWidth: 260 }}
+          />
+        </div>
+        <Button icon={<LogoutOutlined />} onClick={onLogout}>
+          退出登录
+        </Button>
+      </Header>
+      <Content style={{ padding: 24, maxWidth: 1100, width: "100%", margin: "0 auto" }}>
+        <Routes>
+          <Route path="/upload" element={<UploadPage config={config} />} />
+          <Route path="/files" element={<FilesPage config={config} />} />
+          <Route path="*" element={<Navigate to="/upload" replace />} />
+        </Routes>
+      </Content>
+    </AntLayout>
+  );
+}
 
 export function App() {
-  const [token, setToken] = useState<string>(() => sessionStorage.getItem("portal-token") ?? "");
+  const [auth, setAuth] = useState<AuthState>("loading");
   const [config, setConfig] = useState<api.ClientConfig | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!token) {
-      setConfig(null);
-      return;
-    }
-    api.setApiToken(token);
-    sessionStorage.setItem("portal-token", token);
+  const enterApp = useCallback(() => {
     api
       .fetchConfig()
-      .then(setConfig)
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : String(err));
-        setConfig(null);
-      });
-  }, [token]);
+      .then((cfg) => {
+        setConfig(cfg);
+        setAuth("ready");
+      })
+      .catch(() => setAuth("login"));
+  }, []);
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem("portal-token");
+    if (saved) {
+      api.setApiToken(saved);
+    }
+    // 无手动 token 时也尝试加载配置：nginx 会自动注入 X-API-Key（start-stack.sh），
+    // 此时免登录；注入不可用时进入登录页。
+    void enterApp();
+  }, [enterApp]);
+
+  const handleLogout = useCallback(() => {
+    sessionStorage.removeItem("portal-token");
+    api.setApiToken(null);
+    setConfig(null);
+    setAuth("login");
+  }, []);
+
+  if (auth === "loading") {
+    return <Spin fullscreen tip="正在连接上传服务…" />;
+  }
+
+  if (auth === "login") {
+    return (
+      <ConfigProvider locale={zhCN}>
+        <LoginPage onSuccess={enterApp} />
+      </ConfigProvider>
+    );
+  }
 
   return (
-    <main className="app">
-      <header className="header">
-        <h1>PyUploadX</h1>
-        <label className="token-input">
-          API Key（仅保存在会话内，不写入 LocalStorage）
-          <input
-            type="password"
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            placeholder="粘贴 X-API-Key"
-          />
-        </label>
-      </header>
-      {error ? <p className="error-text">配置加载失败：{error}</p> : null}
-      {config ? (
-        <UploadPage config={config} />
-      ) : (
-        !token && <p className="empty">请输入 API Key 以连接上传服务。</p>
-      )}
-    </main>
+    <ConfigProvider locale={zhCN}>
+      <BrowserRouter>
+        <Shell config={config!} onLogout={handleLogout} />
+      </BrowserRouter>
+    </ConfigProvider>
   );
 }

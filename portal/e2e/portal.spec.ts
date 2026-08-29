@@ -1,9 +1,11 @@
 /**
- * Portal E2E (docs 29.6): auth/error display, file and directory upload,
+ * Portal E2E (docs 29.6): login/error display, file and directory upload,
  * lifecycle selection, and queue restore after a page refresh.
  *
  * Notes:
  * - /v1/client-config is public; auth is enforced on upload endpoints.
+ * - The UI is gated by a login page: the API key is verified against
+ *   GET /v1/files before entering the app (sessionStorage only).
  * - Fresh uploads keep the File blob in memory (no dialog). After a page
  *   refresh the blob is gone, so the queue shows a "重新选择" button and the
  *   user re-picks the original file (docs 18.4).
@@ -31,7 +33,11 @@ test.beforeAll(async () => {
 
 async function login(page: Page, key: string = API_KEY): Promise<void> {
   await page.goto("/");
-  await page.getByPlaceholder("粘贴 X-API-Key").fill(key);
+  const input = page.getByPlaceholder("请输入 API Key");
+  if (await input.isVisible().catch(() => false)) {
+    await input.fill(key);
+    await page.locator(".ant-btn-primary").click();
+  }
   await expect(page.getByRole("heading", { name: "文件上传" })).toBeVisible();
 }
 
@@ -43,19 +49,17 @@ async function uploadFile(page: Page, payload: Payload): Promise<void> {
   await expect(page.locator(".queue-item.completed")).toHaveCount(1, { timeout: 30_000 });
 }
 
-test("错误 API Key 上传被拒绝并显示错误", async ({ page }) => {
-  await login(page, "wrong-key");
-  await page
-    .locator('input[type="file"]')
-    .first()
-    .setInputFiles([{ name: "denied.txt", buffer: Buffer.from("nope") }]);
-  await expect(page.locator(".queue-item.failed")).toHaveCount(1, { timeout: 30_000 });
-  await expect(page.getByText("AUTHENTICATION_REQUIRED")).toBeVisible();
+test("错误 API Key 登录被拒绝并显示错误", async ({ page }) => {
+  await page.goto("/");
+  await page.getByPlaceholder("请输入 API Key").fill("wrong-key");
+  await page.locator(".ant-btn-primary").click();
+  await expect(page.getByText("API Key 无效，请检查后重试")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "PyUploadX" })).toBeVisible();
 });
 
 test("正确 API Key 加载客户端配置", async ({ page }) => {
   await login(page);
-  await expect(page.locator(".controls select")).toHaveCount(2);
+  await expect(page.locator(".ant-select")).toHaveCount(2);
 });
 
 test("上传单个文件并完成", async ({ page }) => {
@@ -86,7 +90,8 @@ test("目录上传保留相对路径", async ({ page }) => {
 
 test("选择生命周期后上传返回生效策略", async ({ page }) => {
   await login(page);
-  await page.locator(".controls select").nth(1).selectOption({ label: "ttl" });
+  await page.locator(".ant-select").nth(1).click();
+  await page.locator(".ant-select-item-option").filter({ hasText: "ttl" }).click();
   const upload = page.waitForResponse(
     (response) =>
       response.url().match(/\/v1\/uploads\/[^/]+\/complete$/)?.length === 1 &&
@@ -115,7 +120,7 @@ test("刷新页面后队列恢复并完成", async ({ page }) => {
     .setInputFiles([file]);
   await expect(page.locator(".queue-item").first()).toBeVisible();
   await page.reload();
-  await page.getByPlaceholder("粘贴 X-API-Key").fill(API_KEY);
+  await expect(page.getByRole("heading", { name: "文件上传" })).toBeVisible();
   // IndexedDB 恢复：任务重新出现，blob 丢失后显示“重新选择”按钮。
   await expect(page.locator(".queue-name", { hasText: "restore.txt" })).toBeVisible();
   await expect(page.getByRole("button", { name: "重新选择" })).toBeVisible();
