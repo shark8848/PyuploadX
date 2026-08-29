@@ -147,12 +147,24 @@ test("刷新页面后队列恢复并完成", async ({ page }) => {
   await expect(page.locator(".queue-item.completed")).toHaveCount(1, { timeout: 30_000 });
 });
 
-test("左下角提供新建桶/设置/退出", async ({ page }) => {
+test("新建桶在侧栏头部，设置/退出在左下角", async ({ page }) => {
   await login(page);
+  await expect(page.locator(".file-nav-header")).toContainText("新建桶");
   await expect(page.locator(".file-nav-footer")).toBeVisible();
-  await expect(page.getByRole("button", { name: "新建桶" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "设置" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "退出" })).toBeVisible();
+  await expect(page.locator(".file-nav-footer").getByRole("button", { name: "设置" })).toBeVisible();
+  await expect(page.locator(".file-nav-footer").getByRole("button", { name: "退出" })).toBeVisible();
+});
+
+test("中英文与明暗主题切换", async ({ page }) => {
+  await login(page);
+  await page.getByRole("button", { name: "EN" }).click();
+  await expect(page.getByRole("heading", { name: "Files" })).toBeVisible();
+  await page.getByRole("button", { name: "中文" }).click();
+  await expect(page.getByRole("heading", { name: "文件浏览" })).toBeVisible();
+  await page.locator(".file-nav-footer").getByRole("button", { name: /主题/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.locator(".file-nav-footer").getByRole("button", { name: /主题/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 
 test("新建存储桶并出现在导航树", async ({ page }) => {

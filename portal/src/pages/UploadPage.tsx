@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Input, Select, Space } from "antd";
 import * as api from "../api/client";
+import { useI18n } from "../i18n";
 import { FileDrop } from "../components/FileDrop";
 import { LifecycleSelect } from "../components/LifecycleSelect";
 import { UploadQueue } from "../components/UploadQueue";
@@ -33,6 +34,7 @@ function defaultLifecycle(config: api.ClientConfig): string | undefined {
 }
 
 export function UploadPage({ config }: Props) {
+  const { t } = useI18n();
   const [bucket, setBucket] = useState(config.uploads.default_bucket);
   const [prefix, setPrefix] = useState("");
   const [lifecycle, setLifecycle] = useState<string | undefined>(() =>
@@ -173,10 +175,10 @@ export function UploadPage({ config }: Props) {
 
   return (
     <div className="page">
-      <h1>文件上传</h1>
+      <h1>{t("upload.title")}</h1>
       <Space wrap style={{ margin: "16px 0" }}>
         <span>
-          Bucket：
+          {t("upload.bucket")}
           <Select
             value={bucket}
             onChange={setBucket}
@@ -185,17 +187,17 @@ export function UploadPage({ config }: Props) {
           />
         </span>
         <span>
-          目标前缀：
+          {t("upload.prefix")}
           <Input
             value={prefix}
             onChange={(event) => setPrefix(event.target.value)}
-            placeholder="例如 artists/10001"
+            placeholder={t("upload.prefixPlaceholder")}
             allowClear
             style={{ width: 220 }}
           />
         </span>
         <span>
-          生命周期：
+          {t("upload.lifecycle")}
           <LifecycleSelect config={config} value={lifecycle} onChange={setLifecycle} />
         </span>
       </Space>

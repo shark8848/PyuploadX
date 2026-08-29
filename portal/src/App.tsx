@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { App as AntApp, ConfigProvider, Layout as AntLayout, Menu, Spin } from "antd";
+import { App as AntApp, ConfigProvider, Layout as AntLayout, Menu, Spin, theme as antTheme } from "antd";
 import { CloudUpload, FolderTree } from "lucide-react";
 import zhCN from "antd/locale/zh_CN";
+import enUS from "antd/locale/en_US";
+import dayjs from "dayjs";
+import "dayjs/locale/zh-cn";
 import * as api from "./api/client";
+import { I18nProvider, useI18n } from "./i18n";
+import { ThemeProvider, useTheme } from "./theme";
 import LoginPage from "./pages/LoginPage";
 import { UploadPage } from "./pages/UploadPage";
 import FilesPage from "./pages/FilesPage";
@@ -21,43 +26,33 @@ function Shell({
   onLogout: () => void;
   onConfigRefresh: () => Promise<void>;
 }) {
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    dayjs.locale(lang === "zh" ? "zh-cn" : "en");
+  }, [lang]);
+
   return (
     <AntLayout style={{ minHeight: "100vh" }}>
-      <Header
-        style={{
-          background: "#fff",
-          borderBottom: "1px solid #f0f0f0",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 24px",
-          position: "sticky",
-          top: 0,
-          zIndex: 10,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-          <div style={{ fontWeight: 700, fontSize: 16, color: "#1f2937" }}>PyUploadX</div>
+      <Header className="app-header">
+        <div className="app-header-inner">
+          <div style={{ fontWeight: 700, fontSize: 16 }}>PyUploadX</div>
           <Menu
             mode="horizontal"
             selectedKeys={[location.pathname]}
             items={[
-              { key: "/files", icon: <FolderTree size={16} />, label: "文件浏览" },
-              { key: "/upload", icon: <CloudUpload size={16} />, label: "上传" },
+              { key: "/files", icon: <FolderTree size={16} />, label: t("nav.files") },
+              { key: "/upload", icon: <CloudUpload size={16} />, label: t("nav.upload") },
             ]}
             onClick={(entry) => navigate(entry.key)}
-            style={{ borderBottom: "none", minWidth: 260 }}
+            style={{ borderBottom: "none", minWidth: 260, background: "transparent" }}
           />
         </div>
       </Header>
       <Content
-        style={
-          location.pathname === "/files"
-            ? { padding: 0, width: "100%" }
-            : { padding: 24, maxWidth: 1100, width: "100%", margin: "0 auto" }
-        }
+        className={location.pathname === "/files" ? "app-content app-content-flush" : "app-content"}
       >
         <Routes>
           <Route path="/upload" element={<UploadPage config={config} />} />
@@ -74,9 +69,10 @@ function Shell({
   );
 }
 
-export function App() {
+function AuthenticatedApp() {
   const [auth, setAuth] = useState<AuthState>("loading");
   const [config, setConfig] = useState<api.ClientConfig | null>(null);
+  const { t } = useI18n();
 
   const enterApp = useCallback(() => {
     api
@@ -116,24 +112,48 @@ export function App() {
   }, []);
 
   if (auth === "loading") {
-    return <Spin fullscreen tip="正在连接上传服务…" />;
+    return <Spin fullscreen description={t("app.connecting")} />;
   }
 
   if (auth === "login") {
-    return (
-      <ConfigProvider locale={zhCN}>
-        <LoginPage onSuccess={enterApp} />
-      </ConfigProvider>
-    );
+    return <LoginPage onSuccess={enterApp} />;
   }
 
   return (
-    <ConfigProvider locale={zhCN}>
-      <AntApp>
-        <BrowserRouter>
-          <Shell config={config!} onLogout={handleLogout} onConfigRefresh={handleConfigRefresh} />
-        </BrowserRouter>
-      </AntApp>
+    <AntApp>
+      <BrowserRouter>
+        <Shell config={config!} onLogout={handleLogout} onConfigRefresh={handleConfigRefresh} />
+      </BrowserRouter>
+    </AntApp>
+  );
+}
+
+function ThemedApp() {
+  const { lang } = useI18n();
+  const { mode } = useTheme();
+
+  return (
+    <ConfigProvider
+      locale={lang === "zh" ? zhCN : enUS}
+      theme={{
+        algorithm: mode === "dark" ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
+        token: {
+          borderRadius: 8,
+          fontSize: 14,
+        },
+      }}
+    >
+      <AuthenticatedApp />
     </ConfigProvider>
+  );
+}
+
+export function App() {
+  return (
+    <I18nProvider>
+      <ThemeProvider>
+        <ThemedApp />
+      </ThemeProvider>
+    </I18nProvider>
   );
 }

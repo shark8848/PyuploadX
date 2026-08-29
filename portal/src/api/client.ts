@@ -158,11 +158,70 @@ export async function refreshConfig(): Promise<ClientConfig> {
   return fetchConfig();
 }
 
-export interface StorageSettings {
-  default_bucket: string;
-  presign_default_expires_seconds: number;
-  maximum_expires_seconds: number;
+export interface StorageInfo {
+  backend: string;
+  capabilities: {
+    multipart: boolean;
+    presigned_put: boolean;
+    presigned_get: boolean;
+    presigned_upload_part: boolean;
+    list_parts: boolean;
+  };
+  allowed_buckets: string[];
+  root_path?: string;
+  multipart_path?: string;
+  endpoint?: string | null;
+  public_endpoint?: string | null;
+  region?: string;
+  access_key_configured?: boolean;
+  force_path_style?: boolean;
 }
+
+export interface RuntimeSettings {
+  storage: {
+    default_bucket: string;
+    presign_default_expires_seconds: number;
+    maximum_expires_seconds: number;
+    info: StorageInfo;
+  };
+  uploads: {
+    maximum_file_size_bytes: number;
+    direct_upload_threshold_bytes: number;
+    default_mode: string;
+    multipart: {
+      default_part_size_bytes: number;
+      minimum_part_size_bytes: number;
+      maximum_part_size_bytes: number;
+      maximum_parts: number;
+    };
+    session: {
+      expires_after_seconds: number;
+      maximum_lifetime_seconds: number;
+    };
+  };
+  lifecycle: {
+    default_policy: { mode: string; action: string; ttl_seconds: number };
+    allowed_modes: string[];
+    allowed_actions: string[];
+    permanent_allowed: boolean;
+    minimum_ttl_seconds: number;
+    maximum_ttl_seconds: number;
+  };
+}
+
+export type SettingsUpdate = Partial<{
+  storage: Partial<Pick<RuntimeSettings["storage"], "default_bucket" | "presign_default_expires_seconds">>;
+  uploads: Partial<{
+    maximum_file_size_bytes: number;
+    direct_upload_threshold_bytes: number;
+    default_mode: string;
+    multipart: Partial<Pick<RuntimeSettings["uploads"]["multipart"], "default_part_size_bytes">>;
+    session: Partial<Pick<RuntimeSettings["uploads"]["session"], "expires_after_seconds">>;
+  }>;
+  lifecycle: Partial<{
+    default_policy: Partial<RuntimeSettings["lifecycle"]["default_policy"]>;
+  }>;
+}>;
 
 export async function listBuckets(): Promise<string[]> {
   const data = await request<{ buckets: string[] }>("/v1/buckets");
@@ -177,18 +236,15 @@ export function createBucket(name: string): Promise<{ name: string }> {
   });
 }
 
-export function getSettings(): Promise<{ storage: StorageSettings }> {
-  return request<{ storage: StorageSettings }>("/v1/settings");
+export function getSettings(): Promise<RuntimeSettings> {
+  return request<RuntimeSettings>("/v1/settings");
 }
 
-export function updateSettings(storage: {
-  default_bucket: string;
-  presign_default_expires_seconds?: number;
-}): Promise<{ storage: StorageSettings }> {
-  return request<{ storage: StorageSettings }>("/v1/settings", {
+export function updateSettings(update: SettingsUpdate): Promise<RuntimeSettings> {
+  return request<RuntimeSettings>("/v1/settings", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ storage }),
+    body: JSON.stringify(update),
   });
 }
 

@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { CloudUpload } from "lucide-react";
+import { useI18n } from "../i18n";
 
 interface Props {
   onFiles: (files: FileList) => void;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function FileDrop({ onFiles, multiple = true, directory = false, disabled }: Props) {
+  const { t } = useI18n();
   const [dragging, setDragging] = useState(false);
 
   const handleDrop = useCallback(
@@ -33,10 +35,10 @@ export function FileDrop({ onFiles, multiple = true, directory = false, disabled
       onDrop={handleDrop}
     >
       <CloudUpload size={36} strokeWidth={1.5} color="#64748b" />
-      <p>拖放文件到此处，或点击选择</p>
+      <p>{t("drop.hint")}</p>
       <div className="file-drop-actions">
         <label className="btn">
-          选择文件
+          {t("drop.files")}
           <input
             type="file"
             multiple={multiple}
@@ -52,7 +54,7 @@ export function FileDrop({ onFiles, multiple = true, directory = false, disabled
         </label>
         {directory && (
           <label className="btn">
-            选择目录
+            {t("drop.directory")}
             <input
               type="file"
               multiple

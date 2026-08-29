@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Card, Input, Space, Typography, message } from "antd";
 import { KeyRound, LockKeyhole } from "lucide-react";
 import * as api from "../api/client";
+import { useI18n } from "../i18n";
 
 const { Title, Paragraph } = Typography;
 
@@ -10,13 +11,14 @@ interface LoginPageProps {
 }
 
 export default function LoginPage({ onSuccess }: LoginPageProps) {
+  const { t } = useI18n();
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [messageApi, contextHolder] = message.useMessage();
 
   const handleLogin = async () => {
     if (!token.trim()) {
-      messageApi.warning("请输入 API Key");
+      messageApi.warning(t("login.required"));
       return;
     }
     setLoading(true);
@@ -24,10 +26,10 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       await api.verifyApiKey(token.trim());
       api.setApiToken(token.trim());
       localStorage.setItem("portal-token", token.trim());
-      messageApi.success("登录成功");
+      messageApi.success(t("login.success"));
       onSuccess();
     } catch {
-      messageApi.error("API Key 无效，请检查后重试");
+      messageApi.error(t("login.invalid"));
     } finally {
       setLoading(false);
     }
@@ -55,14 +57,14 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
               PyUploadX
             </Title>
             <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-              文件上传与共享服务
+              {t("login.subtitle")}
             </Paragraph>
           </div>
 
           <Input.Password
             size="large"
             prefix={<KeyRound size={16} />}
-            placeholder="请输入 API Key"
+            placeholder={t("login.placeholder")}
             value={token}
             onChange={(event) => setToken(event.target.value)}
             onPressEnter={handleLogin}

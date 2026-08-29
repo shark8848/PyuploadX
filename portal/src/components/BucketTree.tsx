@@ -3,6 +3,7 @@ import { Tree } from "antd";
 import { Database, Files, Folder } from "lucide-react";
 import type { DataNode } from "antd/es/tree";
 import * as api from "../api/client";
+import { useI18n } from "../i18n";
 
 interface Props {
   config: api.ClientConfig;
@@ -18,9 +19,9 @@ interface TreeFolder extends DataNode {
   children?: TreeFolder[];
 }
 
-function buildTree(buckets: string[]): TreeFolder[] {
+function buildTree(buckets: string[], allLabel: string): TreeFolder[] {
   return [
-    { key: "", title: "全部文件", icon: <Files size={14} />, isLeaf: true },
+    { key: "", title: allLabel, icon: <Files size={14} />, isLeaf: true },
     ...buckets.map((name) => ({
       key: name,
       title: name,
@@ -80,8 +81,9 @@ async function collectFolders(bucket: string, prefix: string): Promise<string[]>
 }
 
 export function BucketTree({ config, bucket, prefix, onSelect }: Props) {
+  const { t } = useI18n();
   const [treeData, setTreeData] = useState<TreeFolder[]>(() =>
-    buildTree(config.uploads.allowed_buckets),
+    buildTree(config.uploads.allowed_buckets, t("tree.all")),
   );
   const [selectedKey, setSelectedKey] = useState("");
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
@@ -89,8 +91,8 @@ export function BucketTree({ config, bucket, prefix, onSelect }: Props) {
 
   // 桶列表变化（新建桶后刷新配置）时重建根节点。
   useEffect(() => {
-    setTreeData(buildTree(config.uploads.allowed_buckets));
-  }, [config.uploads.allowed_buckets]);
+    setTreeData(buildTree(config.uploads.allowed_buckets, t("tree.all")));
+  }, [config.uploads.allowed_buckets, t]);
 
   // 外部（前缀输入框等）改动筛选条件时同步选中态。
   useEffect(() => {

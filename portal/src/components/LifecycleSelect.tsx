@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { DatePicker, Select, Space } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import * as api from "../api/client";
+import { useI18n } from "../i18n";
 
 interface Props {
   config: api.ClientConfig;
@@ -17,33 +18,34 @@ interface ParsedLifecycle {
   expires_at?: string;
 }
 
-const MODE_LABELS: Record<string, string> = {
-  permanent: "永久保存",
-  ttl: "定时过期（TTL）",
-  temporary: "临时文件（TTL）",
-  sliding_ttl: "滑动过期（访问后续期）",
-  expires_at: "指定时间过期",
+const MODE_KEYS: Record<string, string> = {
+  permanent: "lifecycle.permanent",
+  ttl: "lifecycle.ttl",
+  temporary: "lifecycle.temporary",
+  sliding_ttl: "lifecycle.slidingTtl",
+  expires_at: "lifecycle.expiresAt",
 };
 
-const ACTION_LABELS: Record<string, string> = {
-  delete: "到期删除",
-  notify: "到期通知",
-  none: "仅记录不处理",
+const ACTION_KEYS: Record<string, string> = {
+  delete: "lifecycle.actionDelete",
+  notify: "lifecycle.actionNotify",
+  none: "lifecycle.actionNone",
 };
 
-const TTL_PRESETS: { label: string; seconds: number }[] = [
-  { label: "1 小时", seconds: 3600 },
-  { label: "1 天", seconds: 86400 },
-  { label: "7 天", seconds: 604800 },
-  { label: "30 天", seconds: 2592000 },
-  { label: "90 天", seconds: 7776000 },
-  { label: "180 天", seconds: 15552000 },
-  { label: "365 天", seconds: 31536000 },
+const TTL_PRESETS: { key: string; seconds: number }[] = [
+  { key: "lifecycle.ttl1h", seconds: 3600 },
+  { key: "lifecycle.ttl1d", seconds: 86400 },
+  { key: "lifecycle.ttl7d", seconds: 604800 },
+  { key: "lifecycle.ttl30d", seconds: 2592000 },
+  { key: "lifecycle.ttl90d", seconds: 7776000 },
+  { key: "lifecycle.ttl180d", seconds: 15552000 },
+  { key: "lifecycle.ttl365d", seconds: 31536000 },
 ];
 
 const TTL_LIKE_MODES = new Set(["ttl", "temporary", "sliding_ttl"]);
 
 export function LifecycleSelect({ config, value, onChange }: Props) {
+  const { t } = useI18n();
   const parsed = useMemo<ParsedLifecycle>(() => {
     if (!value) {
       return { mode: "permanent" };
@@ -59,24 +61,25 @@ export function LifecycleSelect({ config, value, onChange }: Props) {
   const modeOptions = useMemo(
     () =>
       config.lifecycle.allowed_modes
-        .filter((mode) => MODE_LABELS[mode])
+        .filter((mode) => MODE_KEYS[mode])
         .filter((mode) => mode !== "permanent" || config.lifecycle.permanent_allowed)
-        .map((mode) => ({ value: mode, label: MODE_LABELS[mode] })),
-    [config],
+        .map((mode) => ({ value: mode, label: t(MODE_KEYS[mode]) })),
+    [config, t],
   );
 
   const ttlOptions = useMemo(() => {
     const { minimum_ttl_seconds: min, maximum_ttl_seconds: max } = config.lifecycle;
-    return TTL_PRESETS.filter((preset) => preset.seconds >= min && preset.seconds <= max);
-  }, [config]);
+    return TTL_PRESETS.filter((preset) => preset.seconds >= min && preset.seconds <= max)
+      .map((preset) => ({ label: t(preset.key), seconds: preset.seconds }));
+  }, [config, t]);
 
   const actionOptions = useMemo(
     () =>
       config.lifecycle.allowed_actions.map((action) => ({
         value: action,
-        label: ACTION_LABELS[action] ?? action,
+        label: ACTION_KEYS[action] ? t(ACTION_KEYS[action]) : action,
       })),
-    [config],
+    [config, t],
   );
 
   const isTtlMode = TTL_LIKE_MODES.has(parsed.mode);

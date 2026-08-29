@@ -2,6 +2,7 @@ import { Button, Progress, Space, Tag } from "antd";
 import { Download, FolderOpen, Pause, Play, RotateCw, X } from "lucide-react";
 import type { QueueFile } from "../upload/fileUpload";
 import { downloadUrl } from "../api/client";
+import { useI18n } from "../i18n";
 
 interface Props {
   items: QueueFile[];
@@ -12,17 +13,18 @@ interface Props {
   onRetry: (item: QueueFile) => void;
 }
 
-const STATUS_TAG: Record<QueueFile["status"], { label: string; color: string }> = {
-  pending: { label: "等待中", color: "default" },
-  uploading: { label: "上传中", color: "processing" },
-  paused: { label: "已暂停", color: "warning" },
-  completed: { label: "已完成", color: "success" },
-  failed: { label: "失败", color: "error" },
+const STATUS_KEY: Record<QueueFile["status"], { key: string; color: string }> = {
+  pending: { key: "queue.pending", color: "default" },
+  uploading: { key: "queue.uploading", color: "processing" },
+  paused: { key: "queue.paused", color: "warning" },
+  completed: { key: "queue.completed", color: "success" },
+  failed: { key: "queue.failed", color: "error" },
 };
 
 export function UploadQueue({ items, onPause, onResume, onReselect, onCancel, onRetry }: Props) {
+  const { t } = useI18n();
   if (items.length === 0) {
-    return <p className="empty">暂无上传任务</p>;
+    return <p className="empty">{t("queue.empty")}</p>;
   }
   return (
     <ul className="queue">
@@ -32,7 +34,7 @@ export function UploadQueue({ items, onPause, onResume, onReselect, onCancel, on
             <span className="queue-name" title={item.objectKey}>
               {item.name}
             </span>
-            <Tag color={STATUS_TAG[item.status].color}>{STATUS_TAG[item.status].label}</Tag>
+            <Tag color={STATUS_KEY[item.status].color}>{t(STATUS_KEY[item.status].key)}</Tag>
           </div>
           <div className="queue-meta">
             {item.objectKey} · {(item.size / 1024 / 1024).toFixed(2)} MB

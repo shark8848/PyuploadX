@@ -1,18 +1,37 @@
 import { useCallback, useEffect, useState } from "react";
-import { App, Button, Input, InputNumber, Modal, Select, Space, Spin, Table, Tag, Tooltip } from "antd";
+import {
+  App,
+  Button,
+  Descriptions,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Space,
+  Spin,
+  Table,
+  Tabs,
+  Tag,
+  Tooltip,
+} from "antd";
 import {
   Download,
   FolderPlus,
+  Languages,
   Link2,
   LogOut,
+  Moon,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
+  Sun,
   Trash2,
 } from "lucide-react";
 import type { ColumnsType } from "antd/es/table";
 import * as api from "../api/client";
 import { BucketTree } from "../components/BucketTree";
+import { useI18n } from "../i18n";
+import { useTheme } from "../theme";
 
 interface Props {
   config: api.ClientConfig;
@@ -21,6 +40,21 @@ interface Props {
 }
 
 const PAGE_SIZE = 50;
+
+interface SettingsForm {
+  storage: {
+    default_bucket: string;
+    presign_default_expires_seconds: number;
+  };
+  uploads: {
+    maximum_file_size_bytes: number;
+    direct_upload_threshold_bytes: number;
+    default_mode: string;
+    multipart: { default_part_size_bytes: number };
+    session: { expires_after_seconds: number };
+  };
+  lifecycle: { default_policy: { mode: string; action: string; ttl_seconds: number } };
+}
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) {
@@ -52,6 +86,9 @@ function errorText(err: unknown): string {
 
 export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) {
   const { modal, message: messageApi } = App.useApp();
+  const { t, lang, setLang } = useI18n();
+  const { mode, toggle: toggleTheme } = useTheme();
+
   const [bucket, setBucket] = useState("");
   const [prefix, setPrefix] = useState("");
   const [status, setStatus] = useState("active");
@@ -68,10 +105,8 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
-  const [settingsForm, setSettingsForm] = useState<{
-    default_bucket: string;
-    presign_default_expires_seconds: number;
-  } | null>(null);
+  const [settings, setSettings] = useState<api.RuntimeSettings | null>(null);
+  const [settingsForm, setSettingsForm] = useState<SettingsForm | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -87,11 +122,11 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
         }),
       );
     } catch (err) {
-      messageApi.error(`加载失败：${errorText(err)}`);
+      messageApi.error(t("files.loadFailed", { msg: errorText(err) }));
     } finally {
       setLoading(false);
     }
-  }, [bucket, prefix, status, offset, sortBy, messageApi]);
+  }, [bucket, prefix, status, offset, sortBy, messageApi, t]);
 
   useEffect(() => {
     void reload();
@@ -121,78 +156,89 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
       try {
         const { url } = await api.presignDownloadUrl(file.id);
         await navigator.clipboard.writeText(url);
-        messageApi.success("下载链接已复制（15 分钟有效）");
+        messageApi.success(t("files.linkCopied"));
       } catch (err) {
         messageApi.error(errorText(err));
       }
     },
-    [messageApi],
+    [messageApi, t],
   );
 
   const remove = useCallback(
     (file: api.FileInfo) => {
       modal.confirm({
-        title: "确认删除",
-        content: `确定删除 ${file.bucket}/${file.object_key}？`,
-        okText: "删除",
+        title: t("files.deleteTitle"),
+        content: t("files.deleteContent", { path: `${file.bucket}/${file.object_key}` }),
+        okText: t("common.delete"),
         okButtonProps: { danger: true },
-        cancelText: "取消",
+        cancelText: t("common.cancel"),
         onOk: async () => {
           try {
             await api.deleteFile(file.id);
-            messageApi.success("文件已删除");
+            messageApi.success(t("files.deleted"));
             await reload();
           } catch (err) {
-            messageApi.error(errorText(err));
+            messageApi.error(t("files.deleteFailed", { msg: errorText(err) }));
           }
         },
       });
     },
-    [modal, messageApi, reload],
+    [modal, messageApi, reload, t],
   );
 
   const handleCreateBucket = useCallback(async () => {
     const name = newBucketName.trim();
     if (!name) {
-      messageApi.warning("请输入存储桶名称");
+      messageApi.warning(t("bucket.required"));
       return;
     }
     setCreating(true);
     try {
       await api.createBucket(name);
-      messageApi.success(`存储桶 ${name} 创建成功`);
+      messageApi.success(t("bucket.created", { name }));
       setCreateOpen(false);
       setNewBucketName("");
       await onConfigRefresh();
     } catch (err) {
       const code = errorText(err);
       if (code === "BUCKET_ALREADY_EXISTS") {
-        messageApi.error(`存储桶 ${name} 已存在`);
+        messageApi.error(t("bucket.exists", { name }));
       } else if (code === "INVALID_BUCKET_NAME") {
-        messageApi.error("桶名不合法：3-63 位小写字母、数字、点、中划线");
+        messageApi.error(t("bucket.invalidName"));
       } else {
-        messageApi.error(`创建失败：${code}`);
+        messageApi.error(t("bucket.createFailed", { msg: code }));
       }
     } finally {
       setCreating(false);
     }
-  }, [newBucketName, messageApi, onConfigRefresh]);
+  }, [newBucketName, messageApi, onConfigRefresh, t]);
 
   const openSettings = useCallback(async () => {
     setSettingsOpen(true);
     setSettingsLoading(true);
     try {
-      const { storage } = await api.getSettings();
+      const data = await api.getSettings();
+      setSettings(data);
       setSettingsForm({
-        default_bucket: storage.default_bucket,
-        presign_default_expires_seconds: storage.presign_default_expires_seconds,
+        storage: {
+          default_bucket: data.storage.default_bucket,
+          presign_default_expires_seconds: data.storage.presign_default_expires_seconds,
+        },
+        uploads: {
+          maximum_file_size_bytes: data.uploads.maximum_file_size_bytes,
+          direct_upload_threshold_bytes: data.uploads.direct_upload_threshold_bytes,
+          default_mode: data.uploads.default_mode,
+          multipart: { default_part_size_bytes: data.uploads.multipart.default_part_size_bytes },
+          session: { expires_after_seconds: data.uploads.session.expires_after_seconds },
+        },
+        lifecycle: { default_policy: { ...data.lifecycle.default_policy } },
       });
     } catch (err) {
-      messageApi.error(`加载设置失败：${errorText(err)}`);
+      messageApi.error(t("settings.loadFailed", { msg: errorText(err) }));
     } finally {
       setSettingsLoading(false);
     }
-  }, [messageApi]);
+  }, [messageApi, t]);
 
   const saveSettings = useCallback(async () => {
     if (!settingsForm) {
@@ -200,20 +246,24 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
     }
     setSettingsSaving(true);
     try {
-      await api.updateSettings(settingsForm);
-      messageApi.success("设置已保存");
+      await api.updateSettings({
+        storage: settingsForm.storage,
+        uploads: settingsForm.uploads,
+        lifecycle: settingsForm.lifecycle,
+      });
+      messageApi.success(t("settings.saved"));
       setSettingsOpen(false);
       await onConfigRefresh();
     } catch (err) {
-      messageApi.error(`保存失败：${errorText(err)}`);
+      messageApi.error(t("settings.saveFailed", { msg: errorText(err) }));
     } finally {
       setSettingsSaving(false);
     }
-  }, [settingsForm, messageApi, onConfigRefresh]);
+  }, [settingsForm, messageApi, onConfigRefresh, t]);
 
   const columns: ColumnsType<api.FileInfo> = [
     {
-      title: "对象",
+      title: t("files.colObject"),
       dataIndex: "object_key",
       ellipsis: true,
       render: (value: string, record) => (
@@ -222,22 +272,22 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
         </span>
       ),
     },
-    { title: "Bucket", dataIndex: "bucket", width: 130 },
+    { title: t("files.colBucket"), dataIndex: "bucket", width: 130 },
     {
-      title: "大小",
+      title: t("files.colSize"),
       dataIndex: "size_bytes",
       width: 100,
       render: (value: number) => formatSize(value),
     },
     {
-      title: "类型",
+      title: t("files.colType"),
       dataIndex: "content_type",
       width: 180,
       ellipsis: true,
       render: (value?: string) => value ?? "—",
     },
     {
-      title: "状态",
+      title: t("files.colStatus"),
       dataIndex: "status",
       width: 90,
       render: (value: string) => (
@@ -245,24 +295,24 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
       ),
     },
     {
-      title: "过期时间",
+      title: t("files.colExpires"),
       dataIndex: "expires_at",
       width: 160,
       render: (value?: string) => formatDate(value),
     },
     {
-      title: "创建时间",
+      title: t("files.colCreated"),
       dataIndex: "created_at",
       width: 160,
       render: (value?: string) => formatDate(value),
     },
     {
-      title: "操作",
+      title: t("files.colActions"),
       key: "actions",
       width: 110,
       render: (_, record) => (
         <Space size={4}>
-          <Tooltip title="下载">
+          <Tooltip title={t("common.download")}>
             <Button
               size="small"
               type="text"
@@ -270,7 +320,7 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
               onClick={() => void download(record)}
             />
           </Tooltip>
-          <Tooltip title="复制下载链接">
+          <Tooltip title={t("common.copyLink")}>
             <Button
               size="small"
               type="text"
@@ -279,7 +329,7 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
             />
           </Tooltip>
           {record.status === "active" && (
-            <Tooltip title="删除">
+            <Tooltip title={t("common.delete")}>
               <Button
                 size="small"
                 type="text"
@@ -294,18 +344,34 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
     },
   ];
 
+  const switchLang = useCallback(() => {
+    setLang(lang === "zh" ? "en" : "zh");
+  }, [lang, setLang]);
+
+  const storageInfo = settings?.storage.info;
   const total = page?.total ?? 0;
   return (
     <div className="file-browse">
       <aside className={`file-nav${navCollapsed ? " collapsed" : ""}`}>
         <div className="file-nav-header">
-          {!navCollapsed && <span>存储</span>}
+          {!navCollapsed && <span className="file-nav-title">{t("nav.storage")}</span>}
+          {!navCollapsed && (
+            <Button
+              type="text"
+              size="small"
+              icon={<FolderPlus size={15} />}
+              onClick={() => setCreateOpen(true)}
+              className="file-nav-create"
+            >
+              {t("sidebar.createBucket")}
+            </Button>
+          )}
           <Button
             type="text"
             size="small"
             icon={navCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
             onClick={() => setNavCollapsed((value) => !value)}
-            aria-label={navCollapsed ? "展开导航" : "收起导航"}
+            aria-label={navCollapsed ? t("nav.expand") : t("nav.collapse")}
           />
         </div>
         <div className="file-nav-body">
@@ -321,45 +387,50 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
           />
         </div>
         <div className="file-nav-footer">
-          <Tooltip title={navCollapsed ? "新建桶" : undefined} placement="right">
+          <Tooltip title={navCollapsed ? t("sidebar.settings") : undefined} placement="right">
+            <Button type="text" icon={<Settings size={16} />} onClick={() => void openSettings()}>
+              {!navCollapsed && t("sidebar.settings")}
+            </Button>
+          </Tooltip>
+          <Tooltip title={navCollapsed ? t("sidebar.language") : undefined} placement="right">
+            <Button type="text" icon={<Languages size={16} />} onClick={switchLang}>
+              {!navCollapsed && (lang === "zh" ? "EN" : "中文")}
+            </Button>
+          </Tooltip>
+          <Tooltip title={navCollapsed ? t("sidebar.theme") : undefined} placement="right">
             <Button
               type="text"
-              icon={<FolderPlus size={16} />}
-              onClick={() => setCreateOpen(true)}
+              icon={mode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+              onClick={toggleTheme}
             >
-              {!navCollapsed && "新建桶"}
+              {!navCollapsed && (mode === "dark" ? t("sidebar.theme") + " · ☀" : t("sidebar.theme") + " · ☾")}
             </Button>
           </Tooltip>
-          <Tooltip title={navCollapsed ? "设置" : undefined} placement="right">
-            <Button type="text" icon={<Settings size={16} />} onClick={() => void openSettings()}>
-              {!navCollapsed && "设置"}
-            </Button>
-          </Tooltip>
-          <Tooltip title={navCollapsed ? "退出登录" : undefined} placement="right">
+          <Tooltip title={navCollapsed ? t("sidebar.logoutTip") : undefined} placement="right">
             <Button type="text" icon={<LogOut size={16} />} onClick={onLogout}>
-              {!navCollapsed && "退出"}
+              {!navCollapsed && t("sidebar.logout")}
             </Button>
           </Tooltip>
         </div>
       </aside>
       <div className="file-browse-main">
-        <h1>文件浏览</h1>
+        <h1>{t("files.title")}</h1>
         <Space wrap style={{ marginBottom: 16 }}>
           <span>
-            前缀：
+            {t("files.prefix")}
             <Input
               value={prefix}
               onChange={(event) => {
                 setPrefix(event.target.value);
                 setOffset(0);
               }}
-              placeholder="例如 reports/2026/"
+              placeholder="reports/2026/"
               allowClear
               style={{ width: 220 }}
             />
           </span>
           <span>
-            状态：
+            {t("files.status")}
             <Select
               value={status}
               onChange={(value) => {
@@ -367,15 +438,15 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
                 setOffset(0);
               }}
               options={[
-                { value: "active", label: "正常" },
-                { value: "deleted", label: "已删除" },
-                { value: "", label: "全部" },
+                { value: "active", label: t("files.statusActive") },
+                { value: "deleted", label: t("files.statusDeleted") },
+                { value: "", label: t("files.statusAll") },
               ]}
               style={{ width: 110 }}
             />
           </span>
           <span>
-            排序：
+            {t("files.sort")}
             <Select
               value={sortBy}
               onChange={(value) => {
@@ -383,8 +454,8 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
                 setOffset(0);
               }}
               options={[
-                { value: "name", label: "按名称" },
-                { value: "created_at", label: "按创建时间" },
+                { value: "name", label: t("files.sortName") },
+                { value: "created_at", label: t("files.sortCreated") },
               ]}
               style={{ width: 130 }}
             />
@@ -395,20 +466,20 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
           columns={columns}
           dataSource={page?.items ?? []}
           loading={loading}
-          locale={{ emptyText: "没有匹配的文件。" }}
+          locale={{ emptyText: t("files.empty") }}
           pagination={{
             current: Math.floor(offset / PAGE_SIZE) + 1,
             pageSize: PAGE_SIZE,
             total,
             showSizeChanger: false,
-            showTotal: (count) => `共 ${count} 个文件`,
+            showTotal: (count) => t("files.total", { count }),
             onChange: (nextPage) => setOffset((nextPage - 1) * PAGE_SIZE),
           }}
         />
       </div>
 
       <Modal
-        title="新建存储桶"
+        title={t("bucket.createTitle")}
         open={createOpen}
         onOk={() => void handleCreateBucket()}
         confirmLoading={creating}
@@ -416,74 +487,348 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
           setCreateOpen(false);
           setNewBucketName("");
         }}
-        okText="创建"
-        cancelText="取消"
+        okText={t("common.create")}
+        cancelText={t("common.cancel")}
         destroyOnHidden
       >
         <Input
           value={newBucketName}
           onChange={(event) => setNewBucketName(event.target.value)}
           onPressEnter={() => void handleCreateBucket()}
-          placeholder="例如 my-bucket"
+          placeholder={t("bucket.placeholder")}
           maxLength={63}
           autoFocus
         />
-        <div className="form-hint">
-          3-63 位：小写字母、数字、点、中划线；不能以点开头/结尾，不能包含连续的点。
-        </div>
+        <div className="form-hint">{t("bucket.hint")}</div>
       </Modal>
 
       <Modal
-        title="存储设置"
+        title={t("settings.title")}
         open={settingsOpen}
         onOk={() => void saveSettings()}
         confirmLoading={settingsSaving}
         onCancel={() => setSettingsOpen(false)}
-        okText="保存"
-        cancelText="取消"
+        okText={t("common.save")}
+        cancelText={t("common.cancel")}
         destroyOnHidden
+        width={620}
       >
-        {settingsLoading || !settingsForm ? (
+        {settingsLoading || !settingsForm || !settings ? (
           <div style={{ textAlign: "center", padding: 24 }}>
             <Spin />
           </div>
         ) : (
-          <div className="settings-form">
-            <div className="settings-field">
-              <label>默认存储桶</label>
-              <Select
-                value={settingsForm.default_bucket}
-                onChange={(value) =>
-                  setSettingsForm((form) => (form ? { ...form, default_bucket: value } : form))
-                }
-                options={config.uploads.allowed_buckets.map((name) => ({
-                  value: name,
-                  label: name,
-                }))}
-                style={{ width: "100%" }}
-              />
-              <div className="form-hint">上传等操作缺省使用的存储桶。</div>
-            </div>
-            <div className="settings-field">
-              <label>下载链接默认有效期（秒）</label>
-              <InputNumber
-                min={60}
-                max={config.presign.maximum_expires_seconds}
-                value={settingsForm.presign_default_expires_seconds}
-                onChange={(value) =>
-                  setSettingsForm((form) =>
-                    form
-                      ? { ...form, presign_default_expires_seconds: value ?? 900 }
-                      : form,
-                  )
-                }
-                style={{ width: "100%" }}
-              />
-              <div className="form-hint">
-                范围 60 - {config.presign.maximum_expires_seconds} 秒。
-              </div>
-            </div>
-          </div>
+          <Tabs
+            items={[
+              {
+                key: "storage",
+                label: t("settings.storage"),
+                children: (
+                  <div className="settings-form">
+                    <div className="settings-field">
+                      <label>{t("settings.defaultBucket")}</label>
+                      <Select
+                        value={settingsForm.storage.default_bucket}
+                        onChange={(value) =>
+                          setSettingsForm((form) =>
+                            form
+                              ? {
+                                  ...form,
+                                  storage: { ...form.storage, default_bucket: value },
+                                }
+                              : form,
+                          )
+                        }
+                        options={(storageInfo?.allowed_buckets ?? config.uploads.allowed_buckets).map(
+                          (name) => ({ value: name, label: name }),
+                        )}
+                        style={{ width: "100%" }}
+                      />
+                      <div className="form-hint">{t("settings.defaultBucketHint")}</div>
+                    </div>
+                    <div className="settings-field">
+                      <label>{t("settings.presignExpiry")}</label>
+                      <InputNumber
+                        min={60}
+                        max={settings.storage.maximum_expires_seconds}
+                        value={settingsForm.storage.presign_default_expires_seconds}
+                        onChange={(value) =>
+                          setSettingsForm((form) =>
+                            form
+                              ? {
+                                  ...form,
+                                  storage: {
+                                    ...form.storage,
+                                    presign_default_expires_seconds: value ?? 900,
+                                  },
+                                }
+                              : form,
+                          )
+                        }
+                        style={{ width: "100%" }}
+                      />
+                      <div className="form-hint">
+                        {t("settings.presignRange", {
+                          min: 60,
+                          max: settings.storage.maximum_expires_seconds,
+                        })}
+                      </div>
+                    </div>
+                    <div className="settings-divider" />
+                    <div className="settings-field">
+                      <label>{t("settings.backendInfo")}</label>
+                      {storageInfo && (
+                        <Descriptions size="small" column={1} bordered>
+                          <Descriptions.Item label={t("settings.backend")}>
+                            {storageInfo.backend}
+                          </Descriptions.Item>
+                          {storageInfo.root_path && (
+                            <Descriptions.Item label={t("settings.rootPath")}>
+                              {storageInfo.root_path}
+                            </Descriptions.Item>
+                          )}
+                          {storageInfo.endpoint && (
+                            <Descriptions.Item label={t("settings.endpoint")}>
+                              {storageInfo.endpoint}
+                            </Descriptions.Item>
+                          )}
+                          {storageInfo.region && (
+                            <Descriptions.Item label={t("settings.region")}>
+                              {storageInfo.region}
+                            </Descriptions.Item>
+                          )}
+                          {storageInfo.access_key_configured !== undefined && (
+                            <Descriptions.Item label={t("settings.accessKeyConfigured")}>
+                              {storageInfo.access_key_configured ? "✓" : "—"}
+                            </Descriptions.Item>
+                          )}
+                          {storageInfo.force_path_style !== undefined && (
+                            <Descriptions.Item label={t("settings.forcePathStyle")}>
+                              {String(storageInfo.force_path_style)}
+                            </Descriptions.Item>
+                          )}
+                          <Descriptions.Item label={t("settings.allowedBuckets")}>
+                            {storageInfo.allowed_buckets.join(", ")}
+                          </Descriptions.Item>
+                          <Descriptions.Item label={t("settings.capabilities")}>
+                            {Object.entries(storageInfo.capabilities)
+                              .filter(([, enabled]) => enabled)
+                              .map(([name]) => name)
+                              .join(", ") || "—"}
+                          </Descriptions.Item>
+                        </Descriptions>
+                      )}
+                      <div className="form-hint">{t("settings.storageHint")}</div>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                key: "uploads",
+                label: t("settings.uploads"),
+                children: (
+                  <div className="settings-form">
+                    <div className="settings-field">
+                      <label>{t("settings.maxFileSize")}</label>
+                      <InputNumber
+                        min={1}
+                        value={settingsForm.uploads.maximum_file_size_bytes}
+                        onChange={(value) =>
+                          setSettingsForm((form) =>
+                            form
+                              ? {
+                                  ...form,
+                                  uploads: { ...form.uploads, maximum_file_size_bytes: value ?? 0 },
+                                }
+                              : form,
+                          )
+                        }
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+                    <div className="settings-field">
+                      <label>{t("settings.directThreshold")}</label>
+                      <InputNumber
+                        min={0}
+                        value={settingsForm.uploads.direct_upload_threshold_bytes}
+                        onChange={(value) =>
+                          setSettingsForm((form) =>
+                            form
+                              ? {
+                                  ...form,
+                                  uploads: {
+                                    ...form.uploads,
+                                    direct_upload_threshold_bytes: value ?? 0,
+                                  },
+                                }
+                              : form,
+                          )
+                        }
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+                    <div className="settings-field">
+                      <label>{t("settings.defaultMode")}</label>
+                      <Select
+                        value={settingsForm.uploads.default_mode}
+                        onChange={(value) =>
+                          setSettingsForm((form) =>
+                            form
+                              ? { ...form, uploads: { ...form.uploads, default_mode: value } }
+                              : form,
+                          )
+                        }
+                        options={[
+                          { value: "automatic", label: t("settings.modeAutomatic") },
+                          { value: "proxy", label: t("settings.modeProxy") },
+                          { value: "presigned", label: t("settings.modePresigned") },
+                        ]}
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+                    <div className="settings-field">
+                      <label>{t("settings.defaultPartSize")}</label>
+                      <InputNumber
+                        min={settings.uploads.multipart.minimum_part_size_bytes}
+                        max={settings.uploads.multipart.maximum_part_size_bytes}
+                        value={settingsForm.uploads.multipart.default_part_size_bytes}
+                        onChange={(value) =>
+                          setSettingsForm((form) =>
+                            form
+                              ? {
+                                  ...form,
+                                  uploads: {
+                                    ...form.uploads,
+                                    multipart: {
+                                      ...form.uploads.multipart,
+                                      default_part_size_bytes: value ?? 0,
+                                    },
+                                  },
+                                }
+                              : form,
+                          )
+                        }
+                        style={{ width: "100%" }}
+                      />
+                      <div className="form-hint">
+                        {settings.uploads.multipart.minimum_part_size_bytes} -{" "}
+                        {settings.uploads.multipart.maximum_part_size_bytes}
+                      </div>
+                    </div>
+                    <div className="settings-field">
+                      <label>{t("settings.sessionExpiry")}</label>
+                      <InputNumber
+                        min={60}
+                        max={settings.uploads.session.maximum_lifetime_seconds}
+                        value={settingsForm.uploads.session.expires_after_seconds}
+                        onChange={(value) =>
+                          setSettingsForm((form) =>
+                            form
+                              ? {
+                                  ...form,
+                                  uploads: {
+                                    ...form.uploads,
+                                    session: {
+                                      ...form.uploads.session,
+                                      expires_after_seconds: value ?? 60,
+                                    },
+                                  },
+                                }
+                              : form,
+                          )
+                        }
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                key: "lifecycle",
+                label: t("settings.lifecycle"),
+                children: (
+                  <div className="settings-form">
+                    <div className="settings-field">
+                      <label>{t("settings.lifecycleMode")}</label>
+                      <Select
+                        value={settingsForm.lifecycle.default_policy.mode}
+                        onChange={(value) =>
+                          setSettingsForm((form) =>
+                            form
+                              ? {
+                                  ...form,
+                                  lifecycle: {
+                                    default_policy: { ...form.lifecycle.default_policy, mode: value },
+                                  },
+                                }
+                              : form,
+                          )
+                        }
+                        options={settings.lifecycle.allowed_modes.map((mode) => ({
+                          value: mode,
+                          label: mode,
+                        }))}
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+                    <div className="settings-field">
+                      <label>{t("settings.lifecycleAction")}</label>
+                      <Select
+                        value={settingsForm.lifecycle.default_policy.action}
+                        onChange={(value) =>
+                          setSettingsForm((form) =>
+                            form
+                              ? {
+                                  ...form,
+                                  lifecycle: {
+                                    default_policy: {
+                                      ...form.lifecycle.default_policy,
+                                      action: value,
+                                    },
+                                  },
+                                }
+                              : form,
+                          )
+                        }
+                        options={settings.lifecycle.allowed_actions.map((action) => ({
+                          value: action,
+                          label: action,
+                        }))}
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+                    <div className="settings-field">
+                      <label>{t("settings.lifecycleTtl")}</label>
+                      <InputNumber
+                        min={settings.lifecycle.minimum_ttl_seconds}
+                        max={settings.lifecycle.maximum_ttl_seconds}
+                        value={settingsForm.lifecycle.default_policy.ttl_seconds}
+                        onChange={(value) =>
+                          setSettingsForm((form) =>
+                            form
+                              ? {
+                                  ...form,
+                                  lifecycle: {
+                                    default_policy: {
+                                      ...form.lifecycle.default_policy,
+                                      ttl_seconds: value ?? settings.lifecycle.minimum_ttl_seconds,
+                                    },
+                                  },
+                                }
+                              : form,
+                          )
+                        }
+                        style={{ width: "100%" }}
+                      />
+                      <div className="form-hint">
+                        {settings.lifecycle.minimum_ttl_seconds} - {settings.lifecycle.maximum_ttl_seconds}
+                      </div>
+                    </div>
+                  </div>
+                ),
+              },
+            ]}
+          />
         )}
       </Modal>
     </div>

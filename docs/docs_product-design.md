@@ -1444,13 +1444,23 @@ GET /v1/settings
 PUT /v1/settings
 ```
 
-- `GET /v1/settings`：返回存储相关运行时覆盖，例如
-  `{"storage": {"default_bucket": "...", "presign_default_expires_seconds": 900,
-  "maximum_expires_seconds": 86400}}`。
-- `PUT /v1/settings`：更新存储设置，请求体 `{"storage": {...}}`。
-  `default_bucket` 必须属于当前租户允许的桶；`presign_default_expires_seconds`
-  须在 `[60, maximum_expires_seconds]` 内，否则返回 422。覆盖值持久化到数据库，
-  上传、新建会话、目录上传与 presign 默认有效期即时生效。
+- `GET /v1/settings`：返回分组运行时配置（DB 覆盖值优先于 YAML/env 默认值）：
+  - `storage`：`default_bucket`、`presign_default_expires_seconds`、
+    `maximum_expires_seconds` 与只读的 `info`（后端类型、Local 根路径或 S3
+    端点/区域、能力、允许的桶）；
+  - `uploads`：`maximum_file_size_bytes`、`direct_upload_threshold_bytes`、
+    `default_mode`、`multipart.default_part_size_bytes`、
+    `session.expires_after_seconds`（及对应的最小/最大边界）；
+  - `lifecycle`：`default_policy`（mode/action/ttl_seconds）与策略边界。
+- `PUT /v1/settings`：部分更新，请求体形如
+  `{"storage": {"default_bucket": "x"}, "uploads": {"default_mode": "proxy"},
+  "lifecycle": {"default_policy": {"mode": "ttl", "action": "delete",
+  "ttl_seconds": 7200}}}`。所有值按各自边界校验，非法返回 422
+  （`INVALID_SETTINGS`）。覆盖值持久化到数据库，上传、新建会话、目录上传、
+  presign 默认有效期与 Portal 配置即时生效。
+- 边界：存储后端的**连接参数**（Local 路径、S3 端点/密钥/区域）属于启动配置
+  （§19），不在运行时 API 中修改；在 `config/settings.yaml` 或环境变量修改后
+  重启生效。Portal 设置页仅只读展示。
 
 ## 16.10 错误格式
 
@@ -1686,8 +1696,11 @@ OpenAPI Generated Client
   可收缩的 Bucket/目录导航树（点击展开子目录，选择即按桶+前缀过滤），右侧支持状态
   过滤、名称/创建时间排序；逐文件下载、复制下载链接、删除（图标按钮），类似
   MinIO 控制台的文件浏览。
-- 左下角操作区（文件浏览左侧导航底部）：新建桶（§16.8）、存储设置（§16.9，
-  可配置默认存储桶与下载链接默认有效期）、退出登录；导航收缩后仅显示图标。
+- 文件浏览左侧导航：头部“存储”标题旁提供新建桶（§16.8）入口；底部操作区提供
+  存储设置（§16.9，可配置默认桶、上传与生命周期参数，只读展示存储后端信息）、
+  语言切换（中文/English）、明暗主题切换、退出登录；导航收缩后仅显示图标。
+- 界面国际化（i18n）与主题：Portal 支持中英文切换（默认中文，偏好保存在
+  localStorage）与明暗主题切换（默认浅色）；切换按钮位于文件浏览左下角操作区。
 - 生命周期选择：上传页可按服务端策略选择 永久 / 定时过期（TTL）/ 滑动过期 /
   指定时间过期，并设置到期动作（删除/通知/仅记录）与 TTL 时长（§14 生命周期策略）。
 - 登录/退出：进入应用前校验 API Key（登录页），登录 Token 保存在 localStorage，关闭浏览器后保持登录。
