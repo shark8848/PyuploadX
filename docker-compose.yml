@@ -54,6 +54,8 @@ services:
       context: portal
       args:
         UPLOAD_API_URL: '${UPLOAD_API_URL:-http://upload-api:8000}'
+    environment:
+      PORTAL_API_TOKEN: '${PORTAL_API_TOKEN:-}'
     depends_on:
       - upload-api
     ports:

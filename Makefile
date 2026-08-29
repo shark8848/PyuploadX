@@ -32,7 +32,7 @@ portal-build:
 	cd portal && npm install && npm run build
 
 compose-up:
-	docker compose -f docker-compose.yml up -d --build
+	bash scripts/start-stack.sh
 
 compose-down:
 	docker compose -f docker-compose.yml down

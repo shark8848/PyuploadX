@@ -8,12 +8,20 @@ server {
     resolver 127.0.0.11 valid=10s ipv6=off;
     set $upload_api http://upload-api:8000;
 
+    # Portal 鉴权：默认注入启动时下发的 token（PORTAL_API_TOKEN）；
+    # 浏览器显式携带 X-API-Key 时（手动登录）优先使用客户端提供的 key。
+    set $portal_key "$PORTAL_API_TOKEN";
+    if ($http_x_api_key) {
+        set $portal_key $http_x_api_key;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }
 
     location /v1/ {
         proxy_pass $upload_api;
+        proxy_set_header X-API-Key $portal_key;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Request-ID $http_x_request_id;
@@ -23,5 +31,6 @@ server {
 
     location /healthz {
         proxy_pass $upload_api;
+        proxy_set_header X-API-Key $portal_key;
     }
 }
