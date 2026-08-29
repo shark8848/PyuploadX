@@ -12,7 +12,7 @@ COPY app ./app
 COPY upload_service ./upload_service
 COPY sdk ./sdk
 
-RUN pip install --no-cache-dir -e "."
+RUN pip install --no-cache-dir -e ".[log-center]"
 
 FROM base AS api
 EXPOSE 8000
