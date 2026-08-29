@@ -39,12 +39,39 @@ class UploadDB extends Dexie {
 
 export const db = new UploadDB();
 
+export const MAX_COMPLETED_HISTORY = 200;
+
 export async function persist(file: QueueFile): Promise<void> {
   await db.files.put(file);
 }
 
 export async function loadQueued(): Promise<QueueFile[]> {
   return db.files.orderBy("status").toArray();
+}
+
+function entryTime(id: string): number {
+  return Number(id.split("-")[0]) || 0;
+}
+
+// 已完成历史保留最近 limit 条，删除更早的记录（仅本地队列元数据，不影响服务端文件）。
+export async function pruneCompletedHistory(limit = MAX_COMPLETED_HISTORY): Promise<number> {
+  const completed = await db.files.where("status").equals("completed").toArray();
+  if (completed.length <= limit) {
+    return 0;
+  }
+  completed.sort((a, b) => entryTime(a.id) - entryTime(b.id));
+  const stale = completed.slice(0, completed.length - limit);
+  await db.files.bulkDelete(stale.map((entry) => entry.id));
+  return stale.length;
+}
+
+export async function clearCompleted(): Promise<number> {
+  const completed = await db.files.where("status").equals("completed").toArray();
+  if (completed.length === 0) {
+    return 0;
+  }
+  await db.files.bulkDelete(completed.map((entry) => entry.id));
+  return completed.length;
 }
 
 export async function removeQueued(id: string): Promise<void> {

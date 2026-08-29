@@ -209,6 +209,18 @@ body {
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .queue { list-style: none; padding: 0; margin: 24px 0; display: flex; flex-direction: column; gap: 12px; }
+.queue-history { margin-top: 28px; }
+.queue-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.queue-history-title { font-weight: 600; font-size: 13px; color: var(--text-secondary); }
+.queue-history .queue { margin-top: 0; }
 .queue-item {
   background: var(--panel);
   border-radius: 10px;

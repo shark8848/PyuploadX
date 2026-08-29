@@ -11,6 +11,7 @@ const ZH: Messages = {
   "common.delete": "删除",
   "common.download": "下载",
   "common.copyLink": "复制下载链接",
+  "common.confirm": "确定",
   "files.deleteFailed": "删除失败：{msg}",
   "nav.files": "文件浏览",
   "nav.upload": "上传",
@@ -144,6 +145,13 @@ const ZH: Messages = {
   "queue.retry": "重试",
   "queue.cancel": "取消",
   "queue.download": "下载",
+  "queue.history": "已完成历史",
+  "queue.showAll": "展开全部 ({count})",
+  "queue.showLess": "收起",
+  "queue.clearCompleted": "清除已完成",
+  "queue.clearCompletedTitle": "确认清除已完成记录",
+  "queue.clearCompletedContent": "将清除 {count} 条已完成的上传记录（仅清除本地队列记录，不影响已上传的文件）。",
+  "queue.completedCleared": "已清除 {count} 条已完成记录",
 
   "app.connecting": "正在连接上传服务…",
 };
@@ -155,6 +163,7 @@ const EN: Messages = {
   "common.delete": "Delete",
   "common.download": "Download",
   "common.copyLink": "Copy link",
+  "common.confirm": "OK",
   "files.deleteFailed": "Delete failed: {msg}",
   "nav.files": "Files",
   "nav.upload": "Upload",
@@ -288,6 +297,13 @@ const EN: Messages = {
   "queue.retry": "Retry",
   "queue.cancel": "Cancel",
   "queue.download": "Download",
+  "queue.history": "Completed history",
+  "queue.showAll": "Show all ({count})",
+  "queue.showLess": "Show less",
+  "queue.clearCompleted": "Clear completed",
+  "queue.clearCompletedTitle": "Clear completed records",
+  "queue.clearCompletedContent": "This clears {count} completed upload records from the local queue. Files already uploaded are not affected.",
+  "queue.completedCleared": "Cleared {count} completed records",
 
   "app.connecting": "Connecting to upload service…",
 };

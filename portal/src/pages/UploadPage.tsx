@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Input, Select, Space } from "antd";
+import { App, Input, Select, Space } from "antd";
 import * as api from "../api/client";
 import { useI18n } from "../i18n";
 import { FileDrop } from "../components/FileDrop";
@@ -7,9 +7,11 @@ import { LifecycleSelect } from "../components/LifecycleSelect";
 import { UploadQueue } from "../components/UploadQueue";
 import {
   cancelUpload,
+  clearCompleted,
   loadQueued,
   pauseUpload,
   persist,
+  pruneCompletedHistory,
   uploadQueuedFile,
   type QueueFile,
 } from "../upload/fileUpload";
@@ -35,6 +37,7 @@ function defaultLifecycle(config: api.ClientConfig): string | undefined {
 
 export function UploadPage({ config }: Props) {
   const { t } = useI18n();
+  const { modal, message: messageApi } = App.useApp();
   const [bucket, setBucket] = useState(config.uploads.default_bucket);
   const [prefix, setPrefix] = useState("");
   const [lifecycle, setLifecycle] = useState<string | undefined>(() =>
@@ -47,12 +50,32 @@ export function UploadPage({ config }: Props) {
   const blobs = useRef(new Map<string, File>());
 
   useEffect(() => {
-    void loadQueued().then(setItems);
+    void pruneCompletedHistory()
+      .then(() => loadQueued())
+      .then(setItems);
   }, []);
 
   const refresh = useCallback(async () => {
     setItems(await loadQueued());
   }, []);
+
+  const handleClearCompleted = useCallback(() => {
+    const count = items.filter((item) => item.status === "completed").length;
+    if (count === 0) {
+      return;
+    }
+    modal.confirm({
+      title: t("queue.clearCompletedTitle"),
+      content: t("queue.clearCompletedContent", { count }),
+      okText: t("common.confirm"),
+      cancelText: t("common.cancel"),
+      onOk: async () => {
+        const removed = await clearCompleted();
+        messageApi.success(t("queue.completedCleared", { count: removed }));
+        await refresh();
+      },
+    });
+  }, [items, modal, messageApi, refresh, t]);
 
   const enqueueFiles = useCallback(
     (files: FileList) => {
@@ -209,6 +232,7 @@ export function UploadPage({ config }: Props) {
         onReselect={(item) => void reselect(item)}
         onCancel={(item) => void cancelUpload(item).then(refresh)}
         onRetry={(item) => void runUpload(item)}
+        onClearCompleted={handleClearCompleted}
       />
     </div>
   );
