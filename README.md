@@ -39,6 +39,13 @@ bash scripts/start-stack.sh           # 等价于 docker compose up -d --build�
 Portal 打开后会自动完成鉴权（nginx 注入 token）；若部署环境未注入 token，则显示登录页，
 输入有效的 API Key 后进入（Token 保存在 localStorage，刷新或重启浏览器后保持登录）。
 
+Portal 主要界面：
+
+- 缺省进入「文件浏览」：左侧按 Bucket/目录的导航树筛选，右侧表格分页展示，支持
+  下载、复制下载链接、删除、状态过滤与排序；
+- 「上传」页支持设置 Bucket、目标前缀与生命周期（永久 / 定时过期 / 指定时间过期，
+  含到期动作与 TTL 时长）。
+
 方式 B：自带第三方组件（`deploy/infra/compose.yaml`，端口可用 `POSTGRES_PORT`、
 `REDIS_PORT`、`MINIO_PORT` 覆盖）
 

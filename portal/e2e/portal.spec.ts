@@ -38,6 +38,12 @@ async function login(page: Page, key: string = API_KEY): Promise<void> {
     await input.fill(key);
     await page.locator(".ant-btn-primary").click();
   }
+  // 缺省首页为文件浏览（docs 18.2）。
+  await expect(page.getByRole("heading", { name: "文件浏览" })).toBeVisible();
+}
+
+async function gotoUpload(page: Page): Promise<void> {
+  await page.getByRole("menuitem", { name: "上传" }).click();
   await expect(page.getByRole("heading", { name: "文件上传" })).toBeVisible();
 }
 
@@ -59,11 +65,13 @@ test("错误 API Key 登录被拒绝并显示错误", async ({ page }) => {
 
 test("正确 API Key 加载客户端配置", async ({ page }) => {
   await login(page);
+  await expect(page.locator(".browser-tree")).toBeVisible();
   await expect(page.locator(".ant-select")).toHaveCount(2);
 });
 
 test("上传单个文件并完成", async ({ page }) => {
   await login(page);
+  await gotoUpload(page);
   const completed = page.waitForResponse(
     (response) =>
       response.url().match(/\/v1\/uploads\/[^/]+\/complete$/)?.length === 1 &&
@@ -79,6 +87,7 @@ test("上传单个文件并完成", async ({ page }) => {
 
 test("目录上传保留相对路径", async ({ page }) => {
   await login(page);
+  await gotoUpload(page);
   await page.locator('input[webkitdirectory]').setInputFiles([
     { name: "assets/logo.svg", mimeType: "image/svg+xml", buffer: Buffer.from("<svg/>") },
     { name: "assets/sub/data.json", mimeType: "application/json", buffer: Buffer.from("{}") },
@@ -90,8 +99,9 @@ test("目录上传保留相对路径", async ({ page }) => {
 
 test("选择生命周期后上传返回生效策略", async ({ page }) => {
   await login(page);
-  await page.locator(".ant-select").nth(1).click();
-  await page.locator(".ant-select-item-option").filter({ hasText: "ttl" }).click();
+  await gotoUpload(page);
+  const modeSelect = page.locator('span:has-text("生命周期：") .ant-select').first();
+  await expect(modeSelect.locator(".ant-select-content")).toHaveText("定时过期（TTL）");
   const upload = page.waitForResponse(
     (response) =>
       response.url().match(/\/v1\/uploads\/[^/]+\/complete$/)?.length === 1 &&
@@ -106,6 +116,7 @@ test("选择生命周期后上传返回生效策略", async ({ page }) => {
 
 test("刷新页面后队列恢复并完成", async ({ page }) => {
   await login(page);
+  await gotoUpload(page);
   const file: Payload = { name: "restore.txt", mimeType: "text/plain", buffer: Buffer.from("restore me") };
   // 放慢建会话请求，让刷新发生时任务仍处于上传中（尚未拿到 uploadId）。
   await page.route("**/v1/uploads", async (route) => {
@@ -120,7 +131,7 @@ test("刷新页面后队列恢复并完成", async ({ page }) => {
     .setInputFiles([file]);
   await expect(page.locator(".queue-item").first()).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: "文件上传" })).toBeVisible();
+  await gotoUpload(page);
   // IndexedDB 恢复：任务重新出现，blob 丢失后显示“重新选择”按钮。
   await expect(page.locator(".queue-name", { hasText: "restore.txt" })).toBeVisible();
   await expect(page.getByRole("button", { name: "重新选择" })).toBeVisible();

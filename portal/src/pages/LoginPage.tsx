@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, Card, Input, Space, Typography, message } from "antd";
-import { KeyOutlined, LockOutlined } from "@ant-design/icons";
+import { KeyRound, LockKeyhole } from "lucide-react";
 import * as api from "../api/client";
 
 const { Title, Paragraph } = Typography;
@@ -50,7 +50,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       >
         <Space direction="vertical" size="large" style={{ width: "100%", textAlign: "center" }}>
           <div>
-            <LockOutlined style={{ fontSize: 40, color: "#667eea" }} />
+            <LockKeyhole size={40} color="#667eea" />
             <Title level={3} style={{ marginTop: 12, marginBottom: 4 }}>
               PyUploadX
             </Title>
@@ -61,7 +61,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
 
           <Input.Password
             size="large"
-            prefix={<KeyOutlined />}
+            prefix={<KeyRound size={16} />}
             placeholder="请输入 API Key"
             value={token}
             onChange={(event) => setToken(event.target.value)}

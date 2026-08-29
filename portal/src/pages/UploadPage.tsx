@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Input, Select, Space } from "antd";
 import * as api from "../api/client";
 import { FileDrop } from "../components/FileDrop";
+import { LifecycleSelect } from "../components/LifecycleSelect";
 import { UploadQueue } from "../components/UploadQueue";
 import {
   cancelUpload,
@@ -20,7 +21,15 @@ function defaultLifecycle(config: api.ClientConfig): string | undefined {
   if (!config.lifecycle.enabled) {
     return undefined;
   }
-  return JSON.stringify({ mode: "ttl", ttl_seconds: 30 * 86400, action: "delete" });
+  const policy = config.lifecycle.default_policy;
+  if (!policy || policy.mode === "permanent") {
+    return undefined;
+  }
+  return JSON.stringify({
+    mode: policy.mode,
+    action: policy.action,
+    ttl_seconds: policy.ttl_seconds,
+  });
 }
 
 export function UploadPage({ config }: Props) {
@@ -187,18 +196,7 @@ export function UploadPage({ config }: Props) {
         </span>
         <span>
           生命周期：
-          <Select
-            value={lifecycle ?? "permanent"}
-            onChange={(value) => setLifecycle(value === "permanent" ? undefined : value)}
-            options={[
-              { value: "permanent", label: "永久" },
-              ...config.lifecycle.allowed_modes.map((mode) => ({
-                value: JSON.stringify({ mode, ttl_seconds: 30 * 86400 }),
-                label: mode,
-              })),
-            ]}
-            style={{ width: 160 }}
-          />
+          <LifecycleSelect config={config} value={lifecycle} onChange={setLifecycle} />
         </span>
       </Space>
       <FileDrop onFiles={enqueueFiles} directory disabled={busy} />

@@ -1,7 +1,8 @@
 /**
- * Portal API client. Auth token is kept in memory only (docs 18.5: never persist
- * long-lived keys in LocalStorage). OIDC Authorization Code + PKCE is the
- * recommended production flow; the token callback is the integration point.
+ * Portal API client. The login token is persisted in localStorage so the
+ * session survives browser restarts (docs 18.5). OIDC Authorization Code +
+ * PKCE is the recommended production flow; the token callback is the
+ * integration point.
  */
 
 export interface ClientConfig {
@@ -38,6 +39,7 @@ export interface ClientConfig {
     permanent_allowed: boolean;
     minimum_ttl_seconds: number;
     maximum_ttl_seconds: number;
+    default_policy?: { mode: string; ttl_seconds?: number; action?: string };
   };
   directory_upload: {
     enabled: boolean;

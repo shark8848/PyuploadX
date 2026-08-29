@@ -1,5 +1,5 @@
 import { Button, Progress, Space, Tag } from "antd";
-import { DownloadOutlined, PauseOutlined, CaretRightOutlined, FolderOpenOutlined, CloseOutlined, ReloadOutlined } from "@ant-design/icons";
+import { Download, FolderOpen, Pause, Play, RotateCw, X } from "lucide-react";
 import type { QueueFile } from "../upload/fileUpload";
 import { downloadUrl } from "../api/client";
 
@@ -41,32 +41,32 @@ export function UploadQueue({ items, onPause, onResume, onReselect, onCancel, on
           <Progress percent={Math.round(item.progress * 100)} size="small" status={item.status === "failed" ? "exception" : undefined} />
           <Space wrap style={{ marginTop: 10 }}>
             {item.status === "uploading" && (
-              <Button size="small" icon={<PauseOutlined />} onClick={() => onPause(item)}>
+              <Button size="small" icon={<Pause size={14} />} onClick={() => onPause(item)}>
                 暂停
               </Button>
             )}
             {item.status === "paused" && (
-              <Button size="small" icon={<CaretRightOutlined />} onClick={() => onResume(item)}>
+              <Button size="small" icon={<Play size={14} />} onClick={() => onResume(item)}>
                 继续
               </Button>
             )}
             {item.needsFile && (
-              <Button size="small" icon={<FolderOpenOutlined />} onClick={() => onReselect(item)}>
+              <Button size="small" icon={<FolderOpen size={14} />} onClick={() => onReselect(item)}>
                 重新选择
               </Button>
             )}
             {item.status === "failed" && (
-              <Button size="small" icon={<ReloadOutlined />} onClick={() => onRetry(item)}>
+              <Button size="small" icon={<RotateCw size={14} />} onClick={() => onRetry(item)}>
                 重试
               </Button>
             )}
             {(item.status === "paused" || item.status === "failed") && (
-              <Button size="small" icon={<CloseOutlined />} onClick={() => onCancel(item)}>
+              <Button size="small" icon={<X size={14} />} onClick={() => onCancel(item)}>
                 取消
               </Button>
             )}
             {item.status === "completed" && item.fileId && (
-              <Button size="small" icon={<DownloadOutlined />} href={downloadUrl(item.fileId)} target="_blank">
+              <Button size="small" icon={<Download size={14} />} href={downloadUrl(item.fileId)} target="_blank">
                 下载
               </Button>
             )}

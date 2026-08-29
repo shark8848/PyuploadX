@@ -9,6 +9,19 @@ body { margin: 0; background: #f4f6f9; color: #1c2333; }
 
 .page h1 { font-size: 18px; }
 
+.browser-tree {
+  width: 250px;
+  flex-shrink: 0;
+  background: #fff;
+  border: 1px solid #e6eaf0;
+  border-radius: 12px;
+  padding: 10px;
+  position: sticky;
+  top: 72px;
+  max-height: calc(100vh - 140px);
+  overflow: auto;
+}
+
 .file-drop {
   border: 2px dashed #b9c2d0;
   border-radius: 12px;
@@ -19,8 +32,27 @@ body { margin: 0; background: #f4f6f9; color: #1c2333; }
 }
 .file-drop.dragging { border-color: #2563eb; background: #eff6ff; }
 .file-drop.disabled { opacity: 0.6; }
+.file-drop svg { margin-bottom: 12px; }
 .file-drop p { margin: 0 0 16px; color: #555; }
 .file-drop-actions { display: flex; gap: 12px; justify-content: center; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #d7dee8;
+  background: linear-gradient(180deg, #ffffff, #f2f5f9);
+  color: #334155;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn:hover { border-color: #60a5fa; color: #2563eb; background: #eff6ff; }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .queue { list-style: none; padding: 0; margin: 24px 0; display: flex; flex-direction: column; gap: 12px; }
 .queue-item { background: #fff; border-radius: 10px; padding: 14px 16px; border: 1px solid #e6eaf0; }

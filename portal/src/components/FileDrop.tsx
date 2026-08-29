@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { CloudUpload } from "lucide-react";
 
 interface Props {
   onFiles: (files: FileList) => void;
@@ -31,6 +32,7 @@ export function FileDrop({ onFiles, multiple = true, directory = false, disabled
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
     >
+      <CloudUpload size={36} strokeWidth={1.5} color="#64748b" />
       <p>拖放文件到此处，或点击选择</p>
       <div className="file-drop-actions">
         <label className="btn">

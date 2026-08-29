@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Button, ConfigProvider, Layout as AntLayout, Menu, Spin } from "antd";
-import { FolderOpenOutlined, LogoutOutlined, UploadOutlined } from "@ant-design/icons";
+import { CloudUpload, FolderTree, LogOut } from "lucide-react";
 import zhCN from "antd/locale/zh_CN";
 import * as api from "./api/client";
 import LoginPage from "./pages/LoginPage";
@@ -42,14 +42,14 @@ function Shell({
             mode="horizontal"
             selectedKeys={[location.pathname]}
             items={[
-              { key: "/upload", icon: <UploadOutlined />, label: "上传" },
-              { key: "/files", icon: <FolderOpenOutlined />, label: "文件浏览" },
+              { key: "/files", icon: <FolderTree size={16} />, label: "文件浏览" },
+              { key: "/upload", icon: <CloudUpload size={16} />, label: "上传" },
             ]}
             onClick={(entry) => navigate(entry.key)}
             style={{ borderBottom: "none", minWidth: 260 }}
           />
         </div>
-        <Button icon={<LogoutOutlined />} onClick={onLogout}>
+        <Button icon={<LogOut size={16} />} onClick={onLogout}>
           退出登录
         </Button>
       </Header>
@@ -57,7 +57,7 @@ function Shell({
         <Routes>
           <Route path="/upload" element={<UploadPage config={config} />} />
           <Route path="/files" element={<FilesPage config={config} />} />
-          <Route path="*" element={<Navigate to="/upload" replace />} />
+          <Route path="*" element={<Navigate to="/files" replace />} />
         </Routes>
       </Content>
     </AntLayout>
