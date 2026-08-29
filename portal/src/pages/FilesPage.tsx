@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type Key } from "react";
 import {
   App,
   Button,
@@ -97,6 +97,8 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
   const [page, setPage] = useState<api.FilePage | null>(null);
   const [loading, setLoading] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(false);
+  const [selectedKeys, setSelectedKeys] = useState<Key[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<api.FileInfo[]>([]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newBucketName, setNewBucketName] = useState("");
@@ -185,6 +187,71 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
     },
     [modal, messageApi, reload, t],
   );
+
+  const downloadMany = useCallback(async () => {
+    if (selectedFiles.length === 0) {
+      return;
+    }
+    try {
+      for (const file of selectedFiles) {
+        const blob = await api.downloadFile(file.id);
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = file.original_filename || file.object_key.split("/").pop() || file.id;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      messageApi.error(errorText(err));
+    }
+  }, [selectedFiles, messageApi]);
+
+  const removeMany = useCallback(() => {
+    if (selectedFiles.length === 0) {
+      return;
+    }
+    const files = selectedFiles;
+    modal.confirm({
+      title: t("files.batchDeleteTitle"),
+      content: t("files.batchDeleteContent", { count: files.length }),
+      okText: t("common.delete"),
+      okButtonProps: { danger: true },
+      cancelText: t("common.cancel"),
+      onOk: async () => {
+        try {
+          for (const file of files) {
+            await api.deleteFile(file.id);
+          }
+          messageApi.success(t("files.deletedMany", { count: files.length }));
+          setSelectedKeys([]);
+          setSelectedFiles([]);
+          await reload();
+        } catch (err) {
+          messageApi.error(t("files.deleteFailed", { msg: errorText(err) }));
+        }
+      },
+    });
+  }, [modal, messageApi, reload, t, selectedFiles]);
+
+  const rowSelection = {
+    selectedRowKeys: selectedKeys,
+    onChange: (keys: Key[], rows: api.FileInfo[]) => {
+      setSelectedKeys(keys);
+      setSelectedFiles((prev) => {
+        const byId = new Map(prev.map((file) => [file.id, file]));
+        for (const row of rows) {
+          byId.set(row.id, row);
+        }
+        return [...byId.values()].filter((file) => keys.includes(file.id));
+      });
+    },
+    getCheckboxProps: (record: api.FileInfo) => ({
+      disabled: record.status === "deleted",
+    }),
+  };
 
   const handleCreateBucket = useCallback(async () => {
     const name = newBucketName.trim();
@@ -463,12 +530,37 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
             />
           </span>
         </Space>
+        {selectedKeys.length > 0 && (
+          <Space wrap style={{ marginBottom: 12 }} size={8}>
+            <span className="file-selected-count">
+              {t("files.selected", { count: selectedKeys.length })}
+            </span>
+            <Button
+              size="small"
+              type="primary"
+              ghost
+              icon={<Download size={16} />}
+              onClick={() => void downloadMany()}
+            >
+              {t("files.batchDownload")}
+            </Button>
+            <Button
+              size="small"
+              danger
+              icon={<Trash2 size={16} />}
+              onClick={removeMany}
+            >
+              {t("files.batchDelete")}
+            </Button>
+          </Space>
+        )}
         <Table
           rowKey="id"
           columns={columns}
           dataSource={page?.items ?? []}
           loading={loading}
           scroll={{ x: "max-content" }}
+          rowSelection={rowSelection}
           locale={{ emptyText: t("files.empty") }}
           pagination={{
             current: Math.floor(offset / PAGE_SIZE) + 1,
