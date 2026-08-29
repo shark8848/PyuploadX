@@ -153,6 +153,8 @@ body {
   width: 100%;
   min-width: 0;
 }
+.bucket-icon-empty { color: var(--text-muted); }
+.bucket-icon-nonempty { color: var(--accent); }
 .bucket-node-name {
   flex: 1;
   overflow: hidden;

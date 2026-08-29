@@ -24,13 +24,19 @@ function buildTree(
   buckets: string[],
   allLabel: string,
   renderBucketTitle: (name: string) => React.ReactNode,
+  bucketHasFiles: Record<string, boolean>,
 ): TreeFolder[] {
   return [
     { key: "", title: allLabel, icon: <Files size={14} />, isLeaf: true },
     ...buckets.map((name) => ({
       key: name,
       title: renderBucketTitle(name),
-      icon: <Database size={14} />,
+      icon: (
+        <Database
+          size={14}
+          className={bucketHasFiles[name] ? "bucket-icon bucket-icon-nonempty" : "bucket-icon bucket-icon-empty"}
+        />
+      ),
       isLeaf: false,
     })),
   ];
@@ -93,6 +99,7 @@ export function BucketTree({ config, bucket, prefix, onSelect, onConfigRefresh }
     [config.uploads.managed_buckets],
   );
   const [treeData, setTreeData] = useState<TreeFolder[]>([]);
+  const [bucketHasFiles, setBucketHasFiles] = useState<Record<string, boolean>>({});
   const [selectedKey, setSelectedKey] = useState("");
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [loadingKeys, setLoadingKeys] = useState<React.Key[]>([]);
@@ -127,8 +134,34 @@ export function BucketTree({ config, bucket, prefix, onSelect, onConfigRefresh }
 
   // 桶列表变化（新建桶后刷新配置）时重建根节点。
   useEffect(() => {
-    setTreeData(buildTree(config.uploads.allowed_buckets, t("tree.all"), renderBucketTitle));
-  }, [config.uploads.allowed_buckets, t, renderBucketTitle]);
+    setTreeData(
+      buildTree(config.uploads.allowed_buckets, t("tree.all"), renderBucketTitle, bucketHasFiles),
+    );
+  }, [config.uploads.allowed_buckets, t, renderBucketTitle, bucketHasFiles]);
+
+  // 查询各桶是否已有文件（active 对象），用于图标着色区分。
+  useEffect(() => {
+    let cancelled = false;
+    const buckets = config.uploads.allowed_buckets;
+    setBucketHasFiles({});
+    void Promise.all(
+      buckets.map(async (name) => {
+        try {
+          const result = await api.listFiles({ bucket: name, status: "active", limit: 1 });
+          return [name, result.total > 0] as const;
+        } catch {
+          return [name, false] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (!cancelled) {
+        setBucketHasFiles(Object.fromEntries(entries));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [config.uploads.allowed_buckets]);
 
   // 外部（前缀输入框等）改动筛选条件时同步选中态。
   useEffect(() => {
