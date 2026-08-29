@@ -1429,6 +1429,7 @@ GET /v1/client-config
 ```text
 GET  /v1/buckets
 POST /v1/buckets
+DELETE /v1/buckets/{name}
 ```
 
 - `GET /v1/buckets`：返回当前租户允许的存储桶列表（配置静态桶 ∪ 该租户已创建的动态桶）。
@@ -1436,6 +1437,10 @@ POST /v1/buckets
   桶名须为 3-63 位小写字母、数字、点、中划线，不能以点开头/结尾且不含 `..`
   （`INVALID_BUCKET_NAME`，422）；同名桶返回 `BUCKET_ALREADY_EXISTS`（409）。
   创建时会在存储后端真实建桶（Local/S3/MinIO）并持久化到数据库。
+- `DELETE /v1/buckets/{name}`：删除该租户创建的动态桶（配置静态桶不允许删除，
+  返回 `BUCKET_NOT_DELETABLE`，403）。桶不存在返回 `BUCKET_NOT_FOUND`（404）；
+  桶内仍有对象时返回 `BUCKET_NOT_EMPTY`（409）且不删除。成功时删除存储后端
+  空桶与数据库记录（`storage_buckets`）。
 
 ## 16.9 设置 API
 
@@ -1492,6 +1497,9 @@ MISSING_PARTS
 PART_ETAG_MISMATCH
 CHECKSUM_MISMATCH
 OBJECT_ALREADY_EXISTS
+BUCKET_NOT_FOUND
+BUCKET_NOT_EMPTY
+BUCKET_NOT_DELETABLE
 INVALID_RELATIVE_PATH
 DUPLICATE_NORMALIZED_PATH
 MANIFEST_INCOMPLETE

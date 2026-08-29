@@ -189,6 +189,23 @@ class S3StorageAdapter:
             self._raise(exc)
         return False
 
+    async def delete_bucket(self, bucket: str) -> None:
+        try:
+            await self._run(self._internal.delete_bucket, Bucket=bucket)
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            if code == "BucketNotEmpty":
+                raise ApiError(
+                    "BUCKET_NOT_EMPTY",
+                    f"Bucket {bucket!r} is not empty.",
+                    status_code=409,
+                ) from exc
+            if code in {"404", "NotFound", "NoSuchBucket"}:
+                return
+            self._raise(exc)
+        except BotoCoreError as exc:
+            self._raise(exc)
+
     async def object_exists(self, bucket: str, object_key: str) -> bool:
         try:
             await self._run(self._internal.head_object, Bucket=bucket, Key=object_key)

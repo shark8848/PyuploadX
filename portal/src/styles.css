@@ -146,6 +146,31 @@ body {
   min-width: 26px;
   padding: 0;
 }
+.bucket-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+.bucket-node-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bucket-delete-btn {
+  flex-shrink: 0;
+  opacity: 0;
+  color: var(--text-muted);
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.ant-tree-treenode:hover .bucket-delete-btn,
+.bucket-delete-btn:focus-visible,
+.bucket-delete-btn:hover {
+  opacity: 1;
+}
+.bucket-delete-btn:hover { color: var(--danger); }
 .file-browse-main { flex: 1; min-width: 0; padding: 24px; }
 .file-browse-main h1 { font-size: 20px; margin: 0 0 16px; }
 .file-selected-count { color: var(--text-secondary); font-size: 13px; font-weight: 500; }

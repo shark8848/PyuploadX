@@ -49,3 +49,8 @@ async def create(
     session.add(bucket)
     await session.flush()
     return bucket
+
+
+async def delete(session: AsyncSession, bucket: StorageBucket) -> None:
+    await session.delete(bucket)
+    await session.flush()

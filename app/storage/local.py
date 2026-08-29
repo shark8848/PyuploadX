@@ -36,6 +36,16 @@ def safe_join(root: Path, *parts: str) -> Path:
     return candidate
 
 
+def _is_empty_dir(path: Path) -> bool:
+    for child in path.iterdir():
+        if child.is_dir():
+            if not _is_empty_dir(child):
+                return False
+        else:
+            return False
+    return True
+
+
 @dataclass
 class LocalStorageAdapter:
     config: LocalStorageConfig
@@ -167,6 +177,21 @@ class LocalStorageAdapter:
         except ValueError:
             return False
         return destination.is_dir()
+
+    async def delete_bucket(self, bucket: str) -> None:
+        destination = safe_join(self.root, bucket)
+        if not destination.is_dir():
+            return
+        if not _is_empty_dir(destination):
+            raise ApiError(
+                "BUCKET_NOT_EMPTY",
+                f"Bucket {bucket!r} is not empty.",
+                status_code=409,
+            )
+        try:
+            shutil.rmtree(destination)
+        except OSError as exc:
+            raise StorageUnavailableError(f"local bucket delete failed: {exc}") from exc
 
     async def object_exists(self, bucket: str, object_key: str) -> bool:
         return self._object_path(bucket, object_key).exists()

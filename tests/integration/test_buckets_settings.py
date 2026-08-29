@@ -45,6 +45,43 @@ def test_bucket_name_validation(client, auth_headers):
         assert response.status_code == 422, bad
 
 
+def test_delete_bucket_flow(client, auth_headers):
+    name = "tmp-" + uuid.uuid4().hex[:8]
+    assert client.post("/v1/buckets", headers=auth_headers, json={"name": name}).status_code == 201
+
+    cfg = client.get("/v1/client-config", headers=auth_headers)
+    assert name in cfg.json()["uploads"]["managed_buckets"]
+
+    # 空桶删除成功
+    deleted = client.delete(f"/v1/buckets/{name}", headers=auth_headers)
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["name"] == name
+    listed = client.get("/v1/buckets", headers=auth_headers)
+    assert name not in listed.json()["buckets"]
+    cfg = client.get("/v1/client-config", headers=auth_headers)
+    assert name not in cfg.json()["uploads"]["managed_buckets"]
+
+    # 重复删除 → 404
+    again = client.delete(f"/v1/buckets/{name}", headers=auth_headers)
+    assert again.status_code == 404
+
+
+def test_delete_bucket_not_empty(client, auth_headers):
+    name = "full-" + uuid.uuid4().hex[:8]
+    assert client.post("/v1/buckets", headers=auth_headers, json={"name": name}).status_code == 201
+    _upload(client, auth_headers, name, "docs/x.txt")
+
+    deleted = client.delete(f"/v1/buckets/{name}", headers=auth_headers)
+    assert deleted.status_code == 409, deleted.text
+    assert deleted.json()["error"]["code"] == "BUCKET_NOT_EMPTY"
+
+
+def test_delete_configured_bucket_rejected(client, auth_headers):
+    deleted = client.delete("/v1/buckets/app-default", headers=auth_headers)
+    assert deleted.status_code == 403, deleted.text
+    assert deleted.json()["error"]["code"] == "BUCKET_NOT_DELETABLE"
+
+
 def test_settings_defaults(client, auth_headers):
     got = client.get("/v1/settings", headers=auth_headers)
     assert got.status_code == 200

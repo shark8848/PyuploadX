@@ -58,6 +58,11 @@ class StorageAdapter(Protocol):
         bucket: str,
     ) -> bool: ...
 
+    async def delete_bucket(
+        self,
+        bucket: str,
+    ) -> None: ...
+
     async def put_object(
         self,
         bucket: str,

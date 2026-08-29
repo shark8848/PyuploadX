@@ -453,6 +453,7 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
               setPrefix(nextPrefix);
               setOffset(0);
             }}
+            onConfigRefresh={onConfigRefresh}
           />
         </div>
         <div className="file-nav-footer">

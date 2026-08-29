@@ -70,6 +70,46 @@ class BucketService:
             names.add(row.name)
         return sorted(names)
 
+    async def list_managed_buckets_for_tenant(
+        self,
+        session: AsyncSession,
+        tenant_id: str,
+    ) -> list[str]:
+        rows = await repositories.bucket_repository.list_for_tenant(session, tenant_id)
+        return [row.name for row in rows]
+
+    async def delete_bucket(
+        self,
+        session: AsyncSession,
+        identity: Identity,
+        name: str,
+    ) -> dict[str, str]:
+        name = self.validate_name(name)
+        if name in self.settings.storage.allowed_buckets:
+            raise ApiError(
+                "BUCKET_NOT_DELETABLE",
+                f"Bucket {name!r} is configured and cannot be deleted.",
+                status_code=403,
+            )
+        record = await repositories.bucket_repository.get_by_name(
+            session, identity.tenant_id, name
+        )
+        if not record:
+            raise ApiError(
+                "BUCKET_NOT_FOUND",
+                f"Bucket {name!r} does not exist.",
+                status_code=404,
+            )
+        if not await self.storage.bucket_exists(name):
+            raise ApiError(
+                "BUCKET_NOT_FOUND",
+                f"Bucket {name!r} does not exist.",
+                status_code=404,
+            )
+        await self.storage.delete_bucket(name)
+        await repositories.bucket_repository.delete(session, record)
+        return {"name": name}
+
     async def is_bucket_allowed(
         self,
         session: AsyncSession,

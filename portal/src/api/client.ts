@@ -21,6 +21,7 @@ export interface ClientConfig {
     };
     session: { expires_after_seconds: number; refresh_enabled: boolean };
     allowed_buckets: string[];
+    managed_buckets: string[];
     default_bucket: string;
   };
   storage: {
@@ -281,6 +282,10 @@ export function createBucket(name: string): Promise<{ name: string }> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
+}
+
+export function deleteBucket(name: string): Promise<{ name: string }> {
+  return request(`/v1/buckets/${encodeURIComponent(name)}`, { method: "DELETE" });
 }
 
 export function getSettings(): Promise<RuntimeSettings> {

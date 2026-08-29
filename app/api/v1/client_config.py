@@ -27,6 +27,7 @@ async def client_config(
         except AuthenticationError:
             tenant_id = "default"
     allowed_buckets = await state.bucket_service.list_buckets_for_tenant(db, tenant_id)
+    managed_buckets = await state.bucket_service.list_managed_buckets_for_tenant(db, tenant_id)
     default_bucket = await state.setting_service.get_default_bucket(db)
     presign_default = await state.setting_service.get_presign_default_seconds(db)
     max_file_size = await state.setting_service.get_max_file_size(db)
@@ -57,6 +58,7 @@ async def client_config(
                 "refresh_enabled": settings.uploads.session.refresh_enabled,
             },
             "allowed_buckets": allowed_buckets,
+            "managed_buckets": managed_buckets,
             "default_bucket": default_bucket,
         },
         "presign": {

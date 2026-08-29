@@ -32,3 +32,15 @@ async def create_bucket(
     bucket = await state.bucket_service.create_bucket(db, identity, name)
     await db.commit()
     return bucket
+
+
+@router.delete("/{name}")
+async def delete_bucket(
+    name: str,
+    state: StateDep,
+    db: SessionDep,
+    identity: IdentityDep,
+) -> dict[str, Any]:
+    result = await state.bucket_service.delete_bucket(db, identity, name)
+    await db.commit()
+    return result
