@@ -11,12 +11,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.dependencies import build_app_state
 from app.api.v1 import (
+    buckets,
     client_config,
     directory_uploads,
     files,
     health,
     lifecycle,
     presign,
+    settings as settings_api,
     uploads,
 )
 from app.config.loader import load_settings
@@ -101,4 +103,6 @@ def create_app(settings: Any = None, config_path: str | None = None) -> FastAPI:
     app.include_router(lifecycle.router, prefix="/v1")
     app.include_router(presign.router, prefix="/v1")
     app.include_router(client_config.router, prefix="/v1")
+    app.include_router(buckets.router, prefix="/v1")
+    app.include_router(settings_api.router, prefix="/v1")
     return app

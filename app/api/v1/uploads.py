@@ -23,7 +23,7 @@ async def create_upload(
     upload = await state.upload_service.create_session(
         db,
         identity,
-        bucket=body.get("bucket") or state.settings.storage.default_bucket,
+        bucket=body.get("bucket") or await state.setting_service.get_default_bucket(db),
         object_key=body["object_key"],
         original_filename=body.get("original_filename", ""),
         content_type=body.get("content_type"),

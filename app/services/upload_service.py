@@ -73,15 +73,16 @@ def serialize_session(session: UploadSession) -> dict[str, Any]:
 
 
 class UploadService:
-    def __init__(self, settings: Settings, storage: StorageAdapter) -> None:
+    def __init__(self, settings: Settings, storage: StorageAdapter, bucket_service) -> None:
         self.settings = settings
         self.storage = storage
+        self.bucket_service = bucket_service
 
     def _validate_object_key(self, object_key: str) -> str:
         return normalize_relative_path(object_key, maximum_bytes=1024)
 
-    def _validate_bucket(self, bucket: str) -> None:
-        if bucket not in self.settings.storage.allowed_buckets:
+    async def _validate_bucket(self, session: AsyncSession, identity: Identity, bucket: str) -> None:
+        if not await self.bucket_service.is_bucket_allowed(session, identity.tenant_id, bucket):
             raise ApiError(
                 "INVALID_BUCKET",
                 f"Bucket {bucket!r} is not allowed.",
@@ -106,7 +107,7 @@ class UploadService:
         lifecycle: dict[str, Any] | None,
         metadata: dict[str, Any] | None,
     ) -> UploadSession:
-        self._validate_bucket(bucket)
+        await self._validate_bucket(session, identity, bucket)
         safe_key = self._validate_object_key(object_key)
         maximum_bytes = self.settings.uploads.file_size.maximum_bytes
         if total_size < 0:

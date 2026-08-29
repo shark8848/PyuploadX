@@ -13,9 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.config.models import Settings
 from app.core.auth import ApiKeyAuthenticator, Identity
 from app.db.session import build_engine, build_session_factory
+from app.services.bucket_service import BucketService
 from app.services.directory_upload_service import DirectoryUploadService
 from app.services.file_service import FileService
 from app.services.lifecycle_service import LifecycleService
+from app.services.setting_service import SettingService
 from app.services.upload_service import UploadService
 from app.storage.base import StorageAdapter
 from app.storage.factory import build_storage
@@ -32,10 +34,14 @@ class AppState:
     file_service: FileService = field(init=False)
     lifecycle_service: LifecycleService = field(init=False)
     directory_service: DirectoryUploadService = field(init=False)
+    bucket_service: BucketService = field(init=False)
+    setting_service: SettingService = field(init=False)
 
     def __post_init__(self) -> None:
-        self.upload_service = UploadService(self.settings, self.storage)
-        self.file_service = FileService(self.settings, self.storage)
+        self.bucket_service = BucketService(self.settings, self.storage)
+        self.setting_service = SettingService(self.settings)
+        self.upload_service = UploadService(self.settings, self.storage, self.bucket_service)
+        self.file_service = FileService(self.settings, self.storage, self.bucket_service)
         self.lifecycle_service = LifecycleService(self.settings)
         self.directory_service = DirectoryUploadService(self.settings)
 

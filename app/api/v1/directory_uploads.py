@@ -28,7 +28,7 @@ async def create_directory_upload(
         db,
         identity,
         root_directory_name=body.get("root_directory_name", ""),
-        bucket=body.get("bucket") or state.settings.storage.default_bucket,
+        bucket=body.get("bucket") or await state.setting_service.get_default_bucket(db),
         destination_prefix=body.get("destination_prefix", ""),
         conflict_policy=body.get("conflict_policy", "reject"),
         source=body.get("source", "sdk"),

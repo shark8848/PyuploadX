@@ -2,19 +2,33 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 
-from app.api.dependencies import StateDep
+from app.api.dependencies import SessionDep, StateDep
+from app.core.errors import AuthenticationError
 
 router = APIRouter(tags=["client-config"])
 
 
 @router.get("/client-config")
-async def client_config(state: StateDep) -> dict[str, Any]:
+async def client_config(
+    state: StateDep,
+    db: SessionDep,
+    x_api_key: Annotated[str | None, Header()] = None,
+) -> dict[str, Any]:
     settings = state.settings
     capabilities = state.storage.capabilities
+    tenant_id = "default"
+    if settings.auth.mode != "none" and x_api_key:
+        try:
+            tenant_id = state.authenticator.authenticate(x_api_key).tenant_id
+        except AuthenticationError:
+            tenant_id = "default"
+    allowed_buckets = await state.bucket_service.list_buckets_for_tenant(db, tenant_id)
+    default_bucket = await state.setting_service.get_default_bucket(db)
+    presign_default = await state.setting_service.get_presign_default_seconds(db)
     return {
         "service": {
             "name": settings.app.name,
@@ -36,11 +50,11 @@ async def client_config(state: StateDep) -> dict[str, Any]:
                 "expires_after_seconds": settings.uploads.session.expires_after_seconds,
                 "refresh_enabled": settings.uploads.session.refresh_enabled,
             },
-            "allowed_buckets": settings.storage.allowed_buckets,
-            "default_bucket": settings.storage.default_bucket,
+            "allowed_buckets": allowed_buckets,
+            "default_bucket": default_bucket,
         },
         "presign": {
-            "default_expires_seconds": settings.presign.default_expires_seconds,
+            "default_expires_seconds": presign_default,
             "maximum_expires_seconds": settings.presign.maximum_expires_seconds,
         },
         "storage": {

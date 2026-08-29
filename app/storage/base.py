@@ -48,6 +48,16 @@ class StorageAdapter(Protocol):
     capabilities: StorageCapabilities
     backend_name: str
 
+    async def create_bucket(
+        self,
+        bucket: str,
+    ) -> None: ...
+
+    async def bucket_exists(
+        self,
+        bucket: str,
+    ) -> bool: ...
+
     async def put_object(
         self,
         bucket: str,

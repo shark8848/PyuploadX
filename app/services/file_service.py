@@ -55,9 +55,10 @@ def serialize_file(file_obj: FileObject) -> dict[str, Any]:
 
 
 class FileService:
-    def __init__(self, settings: Settings, storage: StorageAdapter) -> None:
+    def __init__(self, settings: Settings, storage: StorageAdapter, bucket_service) -> None:
         self.settings = settings
         self.storage = storage
+        self.bucket_service = bucket_service
 
     async def proxy_upload(
         self,
@@ -75,7 +76,7 @@ class FileService:
         lifecycle: dict[str, Any] | None,
         metadata: dict[str, Any] | None,
     ) -> FileObject:
-        if bucket not in self.settings.storage.allowed_buckets:
+        if not await self.bucket_service.is_bucket_allowed(session, identity.tenant_id, bucket):
             raise ApiError(
                 "INVALID_BUCKET",
                 f"Bucket {bucket!r} is not allowed.",
@@ -325,7 +326,7 @@ class FileService:
         content_type: str | None,
         expires_seconds: int | None,
     ) -> str:
-        if bucket not in self.settings.storage.allowed_buckets:
+        if not await self.bucket_service.is_bucket_allowed(session, identity.tenant_id, bucket):
             raise ApiError("INVALID_BUCKET", f"Bucket {bucket!r} is not allowed.", status_code=422)
         safe_key = normalize_relative_path(object_key, maximum_bytes=1024)
         if not self.storage.capabilities.presigned_put:

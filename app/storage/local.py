@@ -15,6 +15,7 @@ import aiofiles
 
 from app.config.models import LocalStorageConfig
 from app.core.errors import (
+    ApiError,
     StorageCapabilityNotSupportedError,
     StorageUnavailableError,
 )
@@ -146,6 +147,26 @@ class LocalStorageAdapter:
     async def delete_object(self, bucket: str, object_key: str) -> None:
         path = self._object_path(bucket, object_key)
         path.unlink(missing_ok=True)
+
+    async def create_bucket(self, bucket: str) -> None:
+        destination = safe_join(self.root, bucket)
+        try:
+            destination.mkdir(parents=True, exist_ok=False)
+        except FileExistsError as exc:
+            raise ApiError(
+                "BUCKET_ALREADY_EXISTS",
+                f"Bucket {bucket!r} already exists.",
+                status_code=409,
+            ) from exc
+        except OSError as exc:
+            raise StorageUnavailableError(f"local bucket create failed: {exc}") from exc
+
+    async def bucket_exists(self, bucket: str) -> bool:
+        try:
+            destination = safe_join(self.root, bucket)
+        except ValueError:
+            return False
+        return destination.is_dir()
 
     async def object_exists(self, bucket: str, object_key: str) -> bool:
         return self._object_path(bucket, object_key).exists()

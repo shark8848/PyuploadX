@@ -161,6 +161,34 @@ class S3StorageAdapter:
         except (BotoCoreError, ClientError) as exc:
             self._raise(exc)
 
+    async def create_bucket(self, bucket: str) -> None:
+        try:
+            await self._run(self._internal.create_bucket, Bucket=bucket)
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            if code in {"BucketAlreadyExists", "BucketAlreadyOwnedByYou"}:
+                raise ApiError(
+                    "BUCKET_ALREADY_EXISTS",
+                    f"Bucket {bucket!r} already exists.",
+                    status_code=409,
+                ) from exc
+            self._raise(exc)
+        except BotoCoreError as exc:
+            self._raise(exc)
+
+    async def bucket_exists(self, bucket: str) -> bool:
+        try:
+            await self._run(self._internal.head_bucket, Bucket=bucket)
+            return True
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            if code in {"404", "NotFound", "NoSuchBucket"}:
+                return False
+            self._raise(exc)
+        except BotoCoreError as exc:
+            self._raise(exc)
+        return False
+
     async def object_exists(self, bucket: str, object_key: str) -> bool:
         try:
             await self._run(self._internal.head_object, Bucket=bucket, Key=object_key)
