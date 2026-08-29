@@ -1263,6 +1263,7 @@ GET /metrics
 ## 16.2 文件 API
 
 ```text
+GET    /v1/files
 POST   /v1/files/upload
 GET    /v1/files/{file_id}
 GET    /v1/files/{file_id}/download
@@ -1271,6 +1272,29 @@ POST   /v1/files/{file_id}/permanent-link
 GET    /v1/files/{file_id}/download-link
 DELETE /v1/files/{file_id}
 ```
+
+`GET /v1/files` 分页列出当前租户的文件对象（默认仅 `status=active`），
+支持 `bucket`、`prefix`（`object_key` 前缀）、`status` 过滤，
+`limit`（1..200，默认 50）、`offset` 分页，`sort_by=name|created_at`（默认 `name`）：
+
+```json
+{
+  "items": [
+    {
+      "id": "...",
+      "bucket": "app-default",
+      "object_key": "reports/2026/q3.pdf",
+      "status": "active",
+      "size_bytes": 1048576
+    }
+  ],
+  "total": 42,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+供 Portal 文件浏览（§18.2）等管理界面使用；文件对象字段完整定义见 `serialize_file`。
 
 `POST /v1/files/upload` 与 `POST /v1/uploads/{upload_id}/complete` 的响应在文件字段之外
 附带临时预签名下载 URL：
@@ -1628,6 +1652,9 @@ OpenAPI Generated Client
 - 失败重试；
 - 完成结果；
 - 下载链接。
+- 文件浏览：分页列出全部文件（§16.2 `GET /v1/files`），支持 Bucket/前缀/状态过滤与
+  名称/创建时间排序；逐文件下载、复制下载链接、删除，类似 MinIO 控制台的文件浏览。
+- 登录/退出：进入应用前校验 API Key（登录页），Token 仅存 sessionStorage。
 
 ## 18.3 目录选择
 
@@ -1664,7 +1691,14 @@ uploadParts
 
 ## 18.5 鉴权
 
-Portal 推荐使用：
+Portal 使用登录页模块（参考 IKC Log Center Web）：
+
+- 进入应用前调用 `GET /v1/files`（携带 `X-API-Key`）校验凭据，200 进入、401 停留登录页；
+- 校验通过的 Token 仅保存在 `sessionStorage`（刷新后自动恢复会话），不写入 LocalStorage；
+- 部署层注入 Token 时（`scripts/start-stack.sh` 生成并在 nginx 注入 `X-API-Key`），
+  Portal 可免登录直接使用；未注入时显示登录页，由用户手动输入 API Key。
+
+生产环境推荐进一步升级为：
 
 ```text
 OIDC Authorization Code + PKCE

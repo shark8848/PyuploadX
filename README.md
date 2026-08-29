@@ -31,8 +31,13 @@ export UPLOAD_DATABASE_URL='postgresql+asyncpg://upload:upload@localhost:5432/up
 export UPLOAD_REDIS_URL='redis://localhost:6379/0'
 export UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL='http://localhost:9000'
 export S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin
-docker compose up -d --build          # migrate → upload-api → worker → portal
+# 推荐：portal 自动获取 token（nginx 注入 X-API-Key），无需在浏览器粘贴 API Key。
+# 设置 PORTAL_API_TOKEN 可用固定 token；不设置则每次启动生成随机 token。
+bash scripts/start-stack.sh           # 等价于 docker compose up -d --build（额外下发 portal token）
 ```
+
+Portal 打开后会自动完成鉴权（nginx 注入 token）；若部署环境未注入 token，则显示登录页，
+输入有效的 API Key 后进入（Token 仅保存在 sessionStorage）。
 
 方式 B：自带第三方组件（`deploy/infra/compose.yaml`，端口可用 `POSTGRES_PORT`、
 `REDIS_PORT`、`MINIO_PORT` 覆盖）
@@ -255,7 +260,8 @@ with httpx.stream("GET", url, follow_redirects=True) as resp:
 
 ```text
 GET  /healthz | /readyz | /startupz | /metrics
-POST /v1/files/upload          GET/DELETE /v1/files/{id}
+GET  /v1/files                 POST /v1/files/upload
+GET/DELETE /v1/files/{id}
 GET  /v1/files/{id}/download   POST /v1/files/{id}/presign-download
 POST /v1/files/{id}/permanent-link   GET /v1/files/{id}/download-link   # 永久下载链接
 POST /v1/uploads               POST /v1/uploads/resume
