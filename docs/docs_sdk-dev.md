@@ -43,6 +43,7 @@ client.on_progress(lambda uploaded, total: print(f"{uploaded}/{total}"))  # 上�
 | `create_upload(*, bucket, object_key, total_size, part_size, file_fingerprint=None, expected_sha256=None, lifecycle=None)` | `UploadSessionInfo` | 手动创建分片会话 |
 | `upload_directory(path, *, bucket, destination_prefix="", recursive=True, resume=True, file_concurrency=8, part_concurrency=4, include=None, exclude=None, symlink_policy="ignore", conflict_policy="reject", lifecycle=None)` | `DirectoryJobInfo` | 目录上传 |
 | `get_file(file_id)` | `FileInfo` | 文件最新状态 |
+| `list_files(*, bucket=None, prefix=None, status=None, limit=50, offset=0, sort_by="name")` | `dict` | 分页列出文件（§16.2，返回 `{"items": [...], "total": n}`） |
 | `get_upload(upload_id)` | `UploadSessionInfo` | 分片会话最新状态 |
 | `get_directory_job(job_id)` | `DirectoryJobInfo` | 目录任务最新状态与统计 |
 | `get_download_url(file_id, expires_seconds=None)` | `str \| None` | 预签名下载 URL（Local 后端为 `None`） |
@@ -80,6 +81,10 @@ print(info.download_url, info.expires_in)              # 临时 URL 与有效秒
 
 # 过期后重新获取
 url = client.get_download_url(info.id, expires_seconds=3600)
+
+# 分页浏览文件（可按桶 / 前缀过滤，按名称或创建时间排序）
+page = client.list_files(bucket="app-default", status="active", limit=50, sort_by="created_at")
+print(page["total"], page["items"])
 
 # 分片会话 / 目录任务状态
 session = client.get_upload(upload_id)                 # status, completed_file_id
