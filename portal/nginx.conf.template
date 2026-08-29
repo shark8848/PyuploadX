@@ -15,6 +15,11 @@ server {
         set $portal_key $http_x_api_key;
     }
 
+    # index.html 不缓存：保证刷新即拿到最新入口，避免引用旧 hashed 资源。
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }
