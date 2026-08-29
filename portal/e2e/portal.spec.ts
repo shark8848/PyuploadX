@@ -5,7 +5,7 @@
  * Notes:
  * - /v1/client-config is public; auth is enforced on upload endpoints.
  * - The UI is gated by a login page: the API key is verified against
- *   GET /v1/files before entering the app (sessionStorage only).
+ *   GET /v1/files before entering the app (token persisted in localStorage).
  * - Fresh uploads keep the File blob in memory (no dialog). After a page
  *   refresh the blob is gone, so the queue shows a "重新选择" button and the
  *   user re-picks the original file (docs 18.4).

@@ -79,7 +79,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const saved = sessionStorage.getItem("portal-token");
+    const saved = localStorage.getItem("portal-token");
     if (saved) {
       api.setApiToken(saved);
     }
@@ -89,7 +89,7 @@ export function App() {
   }, [enterApp]);
 
   const handleLogout = useCallback(() => {
-    sessionStorage.removeItem("portal-token");
+    localStorage.removeItem("portal-token");
     api.setApiToken(null);
     setConfig(null);
     setAuth("login");

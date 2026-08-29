@@ -37,7 +37,7 @@ bash scripts/start-stack.sh           # 等价于 docker compose up -d --build�
 ```
 
 Portal 打开后会自动完成鉴权（nginx 注入 token）；若部署环境未注入 token，则显示登录页，
-输入有效的 API Key 后进入（Token 仅保存在 sessionStorage）。
+输入有效的 API Key 后进入（Token 保存在 localStorage，刷新或重启浏览器后保持登录）。
 
 方式 B：自带第三方组件（`deploy/infra/compose.yaml`，端口可用 `POSTGRES_PORT`、
 `REDIS_PORT`、`MINIO_PORT` 覆盖）

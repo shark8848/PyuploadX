@@ -1654,7 +1654,7 @@ OpenAPI Generated Client
 - 下载链接。
 - 文件浏览：分页列出全部文件（§16.2 `GET /v1/files`），支持 Bucket/前缀/状态过滤与
   名称/创建时间排序；逐文件下载、复制下载链接、删除，类似 MinIO 控制台的文件浏览。
-- 登录/退出：进入应用前校验 API Key（登录页），Token 仅存 sessionStorage。
+- 登录/退出：进入应用前校验 API Key（登录页），登录 Token 保存在 localStorage，关闭浏览器后保持登录。
 
 ## 18.3 目录选择
 
@@ -1694,7 +1694,7 @@ uploadParts
 Portal 使用登录页模块（参考 IKC Log Center Web）：
 
 - 进入应用前调用 `GET /v1/files`（携带 `X-API-Key`）校验凭据，200 进入、401 停留登录页；
-- 校验通过的 Token 仅保存在 `sessionStorage`（刷新后自动恢复会话），不写入 LocalStorage；
+- 校验通过的 Token 保存在 `localStorage`（刷新或重启浏览器后保持登录）；
 - 部署层注入 Token 时（`scripts/start-stack.sh` 生成并在 nginx 注入 `X-API-Key`），
   Portal 可免登录直接使用；未注入时显示登录页，由用户手动输入 API Key。
 
@@ -1704,7 +1704,8 @@ Portal 使用登录页模块（参考 IKC Log Center Web）：
 OIDC Authorization Code + PKCE
 ```
 
-不得把长期 API Key 写入浏览器代码或 LocalStorage。
+不得把长期 API Key 硬编码进浏览器代码；Portal 登录 Token 缓存在 localStorage（与 nginx
+注入的 `X-API-Key` 同源，未增加额外泄露面）。
 
 ---
 

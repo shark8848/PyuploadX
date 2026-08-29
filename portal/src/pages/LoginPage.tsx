@@ -3,7 +3,7 @@ import { Button, Card, Input, Space, Typography, message } from "antd";
 import { KeyOutlined, LockOutlined } from "@ant-design/icons";
 import * as api from "../api/client";
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Paragraph } = Typography;
 
 interface LoginPageProps {
   onSuccess: () => void;
@@ -23,7 +23,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
     try {
       await api.verifyApiKey(token.trim());
       api.setApiToken(token.trim());
-      sessionStorage.setItem("portal-token", token.trim());
+      localStorage.setItem("portal-token", token.trim());
       messageApi.success("登录成功");
       onSuccess();
     } catch {
@@ -72,10 +72,6 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
           <Button type="primary" size="large" block loading={loading} onClick={handleLogin}>
             登录
           </Button>
-
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Token 仅保存在本次会话内（sessionStorage），不会写入 LocalStorage
-          </Text>
         </Space>
       </Card>
     </div>
