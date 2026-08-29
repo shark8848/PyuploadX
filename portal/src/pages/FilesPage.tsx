@@ -265,6 +265,7 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
     {
       title: t("files.colObject"),
       dataIndex: "object_key",
+      width: 240,
       ellipsis: true,
       render: (value: string, record) => (
         <span title={record.original_filename} style={{ fontFamily: "ui-monospace, monospace" }}>
@@ -467,6 +468,7 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
           columns={columns}
           dataSource={page?.items ?? []}
           loading={loading}
+          scroll={{ x: "max-content" }}
           locale={{ emptyText: t("files.empty") }}
           pagination={{
             current: Math.floor(offset / PAGE_SIZE) + 1,
