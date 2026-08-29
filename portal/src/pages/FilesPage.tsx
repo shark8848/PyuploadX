@@ -355,17 +355,18 @@ export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) 
       <aside className={`file-nav${navCollapsed ? " collapsed" : ""}`}>
         <div className="file-nav-header">
           {!navCollapsed && <span className="file-nav-title">{t("nav.storage")}</span>}
-          {!navCollapsed && (
+          <Tooltip title={navCollapsed ? t("sidebar.createBucket") : undefined} placement="right">
             <Button
               type="text"
               size="small"
-              icon={<FolderPlus size={15} />}
+              icon={<FolderPlus size={16} />}
               onClick={() => setCreateOpen(true)}
               className="file-nav-create"
+              aria-label={t("sidebar.createBucket")}
             >
-              {t("sidebar.createBucket")}
+              {!navCollapsed && t("sidebar.createBucket")}
             </Button>
-          )}
+          </Tooltip>
           <Button
             type="text"
             size="small"
