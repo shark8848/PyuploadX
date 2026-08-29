@@ -100,6 +100,25 @@ export interface UploadSession {
 let apiToken: string | null = null;
 let cachedConfig: ClientConfig | null = null;
 
+export class ApiError extends Error {
+  readonly code?: string;
+  readonly retryable?: boolean;
+  readonly details?: Record<string, unknown>;
+
+  constructor(
+    message: string,
+    code?: string,
+    retryable?: boolean,
+    details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.retryable = retryable;
+    this.details = details;
+  }
+}
+
 export function setApiToken(token: string | null): void {
   apiToken = token;
   cachedConfig = null;
@@ -139,10 +158,38 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    const error = body?.error ?? {};
-    throw new Error(error.code ?? `HTTP ${response.status}`);
+    const err = apiErrorFromBody(body, `HTTP ${response.status}`);
+    // message 保留错误码，与既有调用方的错误码比较保持兼容。
+    throw new ApiError(err.code ?? err.message ?? `HTTP ${response.status}`, err.code, err.retryable, err.details);
   }
   return (await response.json()) as T;
+}
+
+function apiErrorFromBody(
+  body: unknown,
+  fallback: string,
+): { code?: string; message?: string; retryable?: boolean; details?: Record<string, unknown> } {
+  const error = (body as { error?: Record<string, unknown> | undefined })?.error;
+  if (!error) {
+    return { message: fallback };
+  }
+  return {
+    code: typeof error.code === "string" ? error.code : undefined,
+    message: typeof error.message === "string" ? error.message : undefined,
+    retryable: typeof error.retryable === "boolean" ? error.retryable : undefined,
+    details: typeof error.details === "object" && error.details !== null
+      ? (error.details as Record<string, unknown>)
+      : undefined,
+  };
+}
+
+function apiErrorFromText(text: string): ApiError {
+  try {
+    const parsed = apiErrorFromBody(JSON.parse(text), text);
+    return new ApiError(parsed.message ?? parsed.code ?? text, parsed.code, parsed.retryable, parsed.details);
+  } catch {
+    return new ApiError(text);
+  }
 }
 
 export async function fetchConfig(): Promise<ClientConfig> {
@@ -275,7 +322,7 @@ export function uploadFile(
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(JSON.parse(xhr.responseText) as FileInfo);
       } else {
-        reject(new Error(xhr.responseText));
+        reject(apiErrorFromText(xhr.responseText));
       }
     };
     xhr.onerror = () => reject(new Error("network error"));
@@ -329,7 +376,7 @@ export function uploadPart(
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(JSON.parse(xhr.responseText));
       } else {
-        reject(new Error(xhr.responseText));
+        reject(apiErrorFromText(xhr.responseText));
       }
     };
     xhr.onerror = () => reject(new Error("network error"));

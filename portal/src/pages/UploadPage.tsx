@@ -146,7 +146,11 @@ export function UploadPage({ config }: Props) {
         await uploadQueuedFile(file, entry, () => void refresh());
       } catch (error) {
         entry.status = "failed";
-        entry.error = error instanceof Error ? error.message : String(error);
+        if (error instanceof api.ApiError && error.code === "OBJECT_ALREADY_EXISTS") {
+          entry.error = t("queue.errObjectExists", { path: `${entry.bucket}/${entry.objectKey}` });
+        } else {
+          entry.error = error instanceof Error ? error.message : String(error);
+        }
         await persist(entry);
         void refresh();
       } finally {
@@ -154,7 +158,7 @@ export function UploadPage({ config }: Props) {
         setBusy(false);
       }
     },
-    [config, refresh],
+    [config, refresh, t],
   );
 
   const reselect = useCallback(
