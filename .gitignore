@@ -17,6 +17,10 @@ docs/assets/png/
 portal/test-results/
 portal/playwright-report/
 
+# Node / frontend build artifacts
+portal/node_modules/
+*.tsbuildinfo
+
 # PyPI credentials (never commit)
 config/pypi.env
 
