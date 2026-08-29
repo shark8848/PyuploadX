@@ -67,7 +67,7 @@ body {
 .app-content { padding: 24px; max-width: 1100px; width: 100%; margin: 0 auto; }
 .app-content-flush { padding: 0; max-width: none; }
 
-.file-browse {
+.app-body {
   display: flex;
   align-items: stretch;
   min-height: calc(100vh - 64px);
@@ -171,8 +171,8 @@ body {
   opacity: 1;
 }
 .bucket-delete-btn:hover { color: var(--danger); }
-.file-browse-main { flex: 1; min-width: 0; padding: 24px; }
-.file-browse-main h1 { font-size: 20px; margin: 0 0 16px; }
+.app-body-main { flex: 1; min-width: 0; padding: 24px; }
+.app-body-main h1 { font-size: 20px; margin: 0 0 16px; }
 .file-selected-count { color: var(--text-secondary); font-size: 13px; font-weight: 500; }
 
 .ant-modal-root .ant-modal-wrap {

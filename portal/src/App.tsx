@@ -12,6 +12,7 @@ import { ThemeProvider, useTheme } from "./theme";
 import LoginPage from "./pages/LoginPage";
 import { UploadPage } from "./pages/UploadPage";
 import FilesPage from "./pages/FilesPage";
+import { SideNav } from "./components/SideNav";
 
 const { Header, Content } = AntLayout;
 
@@ -29,6 +30,8 @@ function Shell({
   const { t, lang } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
+  const [bucket, setBucket] = useState("");
+  const [prefix, setPrefix] = useState("");
 
   useEffect(() => {
     dayjs.locale(lang === "zh" ? "zh-cn" : "en");
@@ -51,19 +54,46 @@ function Shell({
           />
         </div>
       </Header>
-      <Content
-        className={location.pathname === "/files" ? "app-content app-content-flush" : "app-content"}
-      >
-        <Routes>
-          <Route path="/upload" element={<UploadPage config={config} />} />
-          <Route
-            path="/files"
-            element={
-              <FilesPage config={config} onLogout={onLogout} onConfigRefresh={onConfigRefresh} />
-            }
+      <Content className="app-content app-content-flush">
+        <div className="app-body">
+          <SideNav
+            config={config}
+            bucket={bucket}
+            prefix={prefix}
+            onSelect={(nextBucket, nextPrefix) => {
+              setBucket(nextBucket);
+              setPrefix(nextPrefix);
+            }}
+            onConfigRefresh={onConfigRefresh}
+            onLogout={onLogout}
           />
-          <Route path="*" element={<Navigate to="/files" replace />} />
-        </Routes>
+          <div className="app-body-main">
+            <Routes>
+              <Route
+                path="/upload"
+                element={
+                  <UploadPage
+                    config={config}
+                    bucket={bucket}
+                    prefix={prefix}
+                    onPrefixChange={setPrefix}
+                  />
+                }
+              />
+              <Route
+                path="/files"
+                element={
+                  <FilesPage
+                    bucket={bucket}
+                    prefix={prefix}
+                    onPrefixChange={setPrefix}
+                  />
+                }
+              />
+              <Route path="*" element={<Navigate to="/files" replace />} />
+            </Routes>
+          </div>
+        </div>
       </Content>
     </AntLayout>
   );

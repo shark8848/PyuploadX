@@ -135,6 +135,7 @@ const ZH: Messages = {
 
   "upload.title": "文件上传",
   "upload.bucket": "Bucket：",
+  "upload.target": "上传目标",
   "upload.prefix": "目标前缀：",
   "upload.prefixPlaceholder": "例如 artists/10001",
   "upload.lifecycle": "生命周期：",
@@ -300,6 +301,7 @@ const EN: Messages = {
 
   "upload.title": "Upload files",
   "upload.bucket": "Bucket:",
+  "upload.target": "Upload target",
   "upload.prefix": "Target prefix:",
   "upload.prefixPlaceholder": "e.g. artists/10001",
   "upload.lifecycle": "Lifecycle:",

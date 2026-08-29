@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { App, Input, Select, Space } from "antd";
+import { App, Input, Space } from "antd";
 import * as api from "../api/client";
 import { useI18n } from "../i18n";
 import { FileDrop } from "../components/FileDrop";
@@ -18,6 +18,9 @@ import {
 
 interface Props {
   config: api.ClientConfig;
+  bucket: string;
+  prefix: string;
+  onPrefixChange: (prefix: string) => void;
 }
 
 function defaultLifecycle(config: api.ClientConfig): string | undefined {
@@ -35,11 +38,9 @@ function defaultLifecycle(config: api.ClientConfig): string | undefined {
   });
 }
 
-export function UploadPage({ config }: Props) {
+export function UploadPage({ config, bucket, prefix, onPrefixChange }: Props) {
   const { t } = useI18n();
   const { modal, message: messageApi } = App.useApp();
-  const [bucket, setBucket] = useState(config.uploads.default_bucket);
-  const [prefix, setPrefix] = useState("");
   const [lifecycle, setLifecycle] = useState<string | undefined>(() =>
     defaultLifecycle(config),
   );
@@ -208,19 +209,14 @@ export function UploadPage({ config }: Props) {
       <h1>{t("upload.title")}</h1>
       <Space wrap style={{ margin: "16px 0" }}>
         <span>
-          {t("upload.bucket")}
-          <Select
-            value={bucket}
-            onChange={setBucket}
-            options={config.uploads.allowed_buckets.map((name) => ({ value: name, label: name }))}
-            style={{ width: 180 }}
-          />
+          {t("upload.target")}: <strong>{bucket}</strong>
+          {prefix ? `/${prefix}` : ""}
         </span>
         <span>
           {t("upload.prefix")}
           <Input
             value={prefix}
-            onChange={(event) => setPrefix(event.target.value)}
+            onChange={(event) => onPrefixChange(event.target.value)}
             placeholder={t("upload.prefixPlaceholder")}
             allowClear
             style={{ width: 220 }}
