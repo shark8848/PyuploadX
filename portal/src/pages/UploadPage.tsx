@@ -164,10 +164,13 @@ export function UploadPage({ config }: Props) {
         blobs.current.set(entry.id, file);
         entry.needsFile = false;
         await persist(entry);
+        messageApi.success(t("queue.reselectDone", { name: file.name }));
         void runUpload(entry);
+      } else {
+        messageApi.warning(t("queue.reselectCancelled"));
       }
     },
-    [runUpload],
+    [runUpload, messageApi, t],
   );
 
   // Resume pending tasks after refresh; uploads interrupted mid-flight are
@@ -249,6 +252,7 @@ async function fetchFromInput(entry: QueueFile): Promise<File | null> {
   document.body.appendChild(input);
   try {
     const selected = await new Promise<FileList | null>((resolve) => {
+      input.addEventListener("cancel", () => resolve(null));
       input.onchange = () => resolve(input.files);
       // 必须挂载到 DOM，否则 click() 不会打开文件选择器。
       input.click();
@@ -256,7 +260,13 @@ async function fetchFromInput(entry: QueueFile): Promise<File | null> {
     if (!selected) {
       return null;
     }
-    return Array.from(selected).find((file) => file.name === entry.name) ?? null;
+    const files = Array.from(selected);
+    if (files.length === 0) {
+      return null;
+    }
+    // 优先取与原文件名一致的条目；不一致时降级使用所选文件，
+    // 避免用户重选的文件名不同导致"点了没反应"。
+    return files.find((file) => file.name === entry.name) ?? files[0];
   } finally {
     input.remove();
   }
