@@ -17,7 +17,9 @@ from app.db.models import Base
 config = context.config
 url = os.environ.get("UPLOAD_DATABASE_URL")
 if url:
-    config.set_main_option("sqlalchemy.url", url)
+    # ConfigParser treats '%' as interpolation; double it so percent-escaped
+    # credentials (e.g. "FileStorageAdmin%402024%23Secure") survive storage.
+    config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
