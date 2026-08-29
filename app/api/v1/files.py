@@ -4,14 +4,47 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, File, Form, Header, Request, UploadFile
+from fastapi import APIRouter, File, Form, Header, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import IdentityDep, SessionDep, StateDep
+from app.db import repositories
+from app.db.models import FileStatus
+from app.services.file_service import serialize_file
 
 router = APIRouter(prefix="/files", tags=["files"])
+
+
+@router.get("")
+async def list_files(
+    state: StateDep,
+    db: SessionDep,
+    identity: IdentityDep,
+    bucket: Annotated[str | None, Query()] = None,
+    prefix: Annotated[str | None, Query()] = None,
+    status: Annotated[FileStatus | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    sort_by: Annotated[Literal["name", "created_at"], Query()] = "name",
+) -> dict[str, Any]:
+    items, total = await repositories.file_repository.list_files(
+        db,
+        tenant_id=identity.tenant_id,
+        bucket=bucket,
+        prefix=prefix,
+        status=status if status is not None else FileStatus.active,
+        limit=limit,
+        offset=offset,
+        order_by=sort_by,
+    )
+    return {
+        "items": [serialize_file(item) for item in items],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.post("/upload")

@@ -518,6 +518,28 @@ class UploadClient:
         self._raise_for_status(response)
         return FileInfo.from_dict(response.json())
 
+    def list_files(
+        self,
+        *,
+        bucket: str | None = None,
+        prefix: str | None = None,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: str = "name",
+    ) -> dict[str, Any]:
+        """Page over file objects (docs 16.2); returns {"items": [...], "total": n}."""
+        params: dict[str, Any] = {"limit": limit, "offset": offset, "sort_by": sort_by}
+        if bucket:
+            params["bucket"] = bucket
+        if prefix:
+            params["prefix"] = prefix
+        if status:
+            params["status"] = status
+        response = self._request("GET", "/v1/files", params=params)
+        self._raise_for_status(response)
+        return response.json()
+
     def get_upload(self, upload_id: str) -> UploadSessionInfo:
         response = self._request("GET", f"/v1/uploads/{upload_id}")
         self._raise_for_status(response)
