@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyuploadx-server"
-version = "0.1.4"
+version = "0.1.5"
 description = "PyUploadX file and directory upload service (FastAPI backend)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -39,6 +39,7 @@ dependencies = [
 
 [project.optional-dependencies]
 docs = ["CairoSVG>=2.7,<3"]
+log-center = ["ikc-log-center>=1.4.19,<2"]
 dev = [
     "pytest>=8,<9",
     "pytest-asyncio>=0.23,<1",

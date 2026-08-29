@@ -62,3 +62,14 @@ portal:
 cluster:
   enabled: false
   node_id_from_env: HOSTNAME
+
+log_center:
+  # IKC Log Center 远程日志投递（HTTP POST {url}/ingest，需安装 pyuploadx-server[log-center]）
+  enabled: false
+  url: http://log-center:9315
+  delivery: api
+  timeout_seconds: 2
+  queue_size: 1000
+  batch_size: 50
+  token: null
+  token_from_env: LOG_CENTER_TOKEN

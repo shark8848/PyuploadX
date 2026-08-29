@@ -43,3 +43,18 @@ def test_secret_resolution(monkeypatch):
     assert settings.storage.s3.access_key == "ak"
     result = validate_settings(settings)
     assert result.ok
+
+
+def test_log_center_env_override(monkeypatch):
+    monkeypatch.setenv("UPLOAD_LOG_CENTER__ENABLED", "true")
+    monkeypatch.setenv("UPLOAD_LOG_CENTER__URL", "http://log-center:9315")
+    monkeypatch.setenv("UPLOAD_LOG_CENTER__DELIVERY", "api")
+    monkeypatch.setenv("LOG_CENTER_TOKEN", "sk-test")
+    monkeypatch.delenv("UPLOAD_DATABASE_URL", raising=False)
+    from app.config.loader import load_settings
+
+    settings = load_settings()
+    assert settings.log_center.enabled is True
+    assert settings.log_center.url == "http://log-center:9315"
+    assert settings.log_center.delivery == "api"
+    assert settings.log_center.token == "sk-test"

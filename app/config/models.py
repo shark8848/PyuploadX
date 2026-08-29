@@ -256,6 +256,20 @@ class LoggingConfig(BaseModel):
     redact_headers: list[str] = ["Authorization", "X-API-Key", "Cookie"]
 
 
+class LogCenterConfig(BaseModel):
+    """Remote log delivery to IKC Log Center (docs 23.1)."""
+
+    enabled: bool = False
+    url: str | None = None
+    token_from_env: str = "LOG_CENTER_TOKEN"
+    token: str | None = None
+    delivery: str = "api"
+    timeout_seconds: float = 2.0
+    queue_size: int = 1000
+    batch_size: int = 50
+    module_name: str = "upload-service"
+
+
 class MetricsConfig(BaseModel):
     enabled: bool = True
     path: str = "/metrics"
@@ -283,6 +297,7 @@ class Settings(BaseModel):
     cluster: ClusterConfig = Field(default_factory=ClusterConfig)
     worker: WorkerConfig = Field(default_factory=WorkerConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    log_center: LogCenterConfig = Field(default_factory=LogCenterConfig)
     metrics: MetricsConfig = Field(default_factory=MetricsConfig)
     tracing: TracingConfig = Field(default_factory=TracingConfig)
 
@@ -302,6 +317,8 @@ class Settings(BaseModel):
             self.cluster.node_id = os.environ.get(self.cluster.node_id_from_env, "node-unknown")
         if self.permanent_link.secret is None:
             self.permanent_link.secret = os.environ.get(self.permanent_link.secret_from_env)
+        if self.log_center.token is None:
+            self.log_center.token = os.environ.get(self.log_center.token_from_env)
 
     @model_validator(mode="after")
     def _validate_settings(self) -> Settings:

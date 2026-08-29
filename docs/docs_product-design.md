@@ -2012,6 +2012,17 @@ logging:
     - X-API-Key
     - Cookie
 
+log_center:
+  # IKC Log Center 远程日志投递（HTTP POST {url}/ingest，需安装 pyuploadx-server[log-center]）
+  enabled: false
+  url: http://log-center:9315
+  delivery: api
+  timeout_seconds: 2
+  queue_size: 1000
+  batch_size: 50
+  token: null
+  token_from_env: LOG_CENTER_TOKEN
+
 metrics:
   enabled: true
   path: /metrics
@@ -2239,6 +2250,12 @@ error_code
 -完整 Authorization；
 -完整 API Key；
 -完整预签名 URL。
+
+远程投递（可选）：通过 `log_center` 配置段（或 `UPLOAD_LOG_CENTER__*` 环境变量）启用
+IKC Log Center 客户端 SDK（PyPI 包 `ikc-log-center`，安装 `pyuploadx-server[log-center]`）。
+启用后所有结构化日志在本地输出的同时，由异步批处理 handler 以 HTTP POST 批量投递到
+`{url}/ingest`（默认每批 50 条），认证使用 `Authorization: Bearer <token>`
+（token 从 `LOG_CENTER_TOKEN` 环境变量注入，默认不启用，投递失败静默丢弃，不影响业务）。
 
 ## 23.2 指标
 

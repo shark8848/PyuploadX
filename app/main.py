@@ -33,7 +33,11 @@ def create_app(settings: Any = None, config_path: str | None = None) -> FastAPI:
     validation = validate_settings(settings)
     if not validation.ok:
         raise ValueError("invalid configuration:\n- " + "\n- ".join(validation.errors))
-    configure_logging(level=settings.logging.level, fmt=settings.logging.format)
+    configure_logging(
+        level=settings.logging.level,
+        fmt=settings.logging.format,
+        log_center=settings.log_center,
+    )
 
     state = build_app_state(settings)
     url = (settings.database.url or "").lower()
