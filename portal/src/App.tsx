@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { Button, ConfigProvider, Layout as AntLayout, Menu, Spin } from "antd";
+import { App as AntApp, Button, ConfigProvider, Layout as AntLayout, Menu, Spin } from "antd";
 import { CloudUpload, FolderTree, LogOut } from "lucide-react";
 import zhCN from "antd/locale/zh_CN";
 import * as api from "./api/client";
@@ -53,7 +53,13 @@ function Shell({
           退出登录
         </Button>
       </Header>
-      <Content style={{ padding: 24, maxWidth: 1100, width: "100%", margin: "0 auto" }}>
+      <Content
+        style={
+          location.pathname === "/files"
+            ? { padding: 0, width: "100%" }
+            : { padding: 24, maxWidth: 1100, width: "100%", margin: "0 auto" }
+        }
+      >
         <Routes>
           <Route path="/upload" element={<UploadPage config={config} />} />
           <Route path="/files" element={<FilesPage config={config} />} />
@@ -109,9 +115,11 @@ export function App() {
 
   return (
     <ConfigProvider locale={zhCN}>
-      <BrowserRouter>
-        <Shell config={config!} onLogout={handleLogout} />
-      </BrowserRouter>
+      <AntApp>
+        <BrowserRouter>
+          <Shell config={config!} onLogout={handleLogout} />
+        </BrowserRouter>
+      </AntApp>
     </ConfigProvider>
   );
 }

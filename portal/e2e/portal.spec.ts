@@ -40,6 +40,7 @@ async function login(page: Page, key: string = API_KEY): Promise<void> {
   }
   // 缺省首页为文件浏览（docs 18.2）。
   await expect(page.getByRole("heading", { name: "文件浏览" })).toBeVisible();
+  await expect(page.locator(".file-nav")).toBeVisible();
 }
 
 async function gotoUpload(page: Page): Promise<void> {
@@ -65,7 +66,7 @@ test("错误 API Key 登录被拒绝并显示错误", async ({ page }) => {
 
 test("正确 API Key 加载客户端配置", async ({ page }) => {
   await login(page);
-  await expect(page.locator(".browser-tree")).toBeVisible();
+  await expect(page.locator(".file-nav")).toBeVisible();
   await expect(page.locator(".ant-select")).toHaveCount(2);
 });
 

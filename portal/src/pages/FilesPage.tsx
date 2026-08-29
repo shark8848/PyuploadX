@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { App, Button, Input, Select, Space, Table, Tag, Tree } from "antd";
-import { Database, Download, Files, Folder, Link2, Trash2 } from "lucide-react";
+import { App, Button, Input, Select, Space, Table, Tag, Tooltip, Tree } from "antd";
+import { Database, Download, Files, Folder, Link2, PanelLeftClose, PanelLeftOpen, Trash2 } from "lucide-react";
 import type { ColumnsType } from "antd/es/table";
 import type { DataNode } from "antd/es/tree";
 import * as api from "../api/client";
@@ -115,6 +115,7 @@ export default function FilesPage({ config }: Props) {
   const [selectedTreeKey, setSelectedTreeKey] = useState("");
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [loadingKeys, setLoadingKeys] = useState<React.Key[]>([]);
+  const [navCollapsed, setNavCollapsed] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -303,22 +304,35 @@ export default function FilesPage({ config }: Props) {
     {
       title: "操作",
       key: "actions",
-      width: 200,
+      width: 110,
       render: (_, record) => (
         <Space size={4}>
-          <Button size="small" icon={<Download size={14} />} onClick={() => void download(record)}>
-            下载
-          </Button>
-          <Button size="small" icon={<Link2 size={14} />} onClick={() => void copyLink(record)}>
-            复制链接
-          </Button>
-          {record.status === "active" && (
+          <Tooltip title="下载">
             <Button
               size="small"
-              danger
-              icon={<Trash2 size={14} />}
-              onClick={() => remove(record)}
+              type="text"
+              icon={<Download size={16} />}
+              onClick={() => void download(record)}
             />
+          </Tooltip>
+          <Tooltip title="复制下载链接">
+            <Button
+              size="small"
+              type="text"
+              icon={<Link2 size={16} />}
+              onClick={() => void copyLink(record)}
+            />
+          </Tooltip>
+          {record.status === "active" && (
+            <Tooltip title="删除">
+              <Button
+                size="small"
+                type="text"
+                danger
+                icon={<Trash2 size={16} />}
+                onClick={() => remove(record)}
+              />
+            </Tooltip>
           )}
         </Space>
       ),
@@ -327,10 +341,19 @@ export default function FilesPage({ config }: Props) {
 
   const total = page?.total ?? 0;
   return (
-    <div className="page">
-      <h1>文件浏览</h1>
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-        <div className="browser-tree">
+    <div className="file-browse">
+      <aside className={`file-nav${navCollapsed ? " collapsed" : ""}`}>
+        <div className="file-nav-header">
+          {!navCollapsed && <span>存储</span>}
+          <Button
+            type="text"
+            size="small"
+            icon={navCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            onClick={() => setNavCollapsed((value) => !value)}
+            aria-label={navCollapsed ? "展开导航" : "收起导航"}
+          />
+        </div>
+        <div className="file-nav-body">
           <Tree
             showIcon
             blockNode
@@ -341,70 +364,71 @@ export default function FilesPage({ config }: Props) {
             onSelect={onSelect}
           />
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <Space wrap style={{ marginBottom: 16 }}>
-            <span>
-              前缀：
-              <Input
-                value={prefix}
-                onChange={(event) => {
-                  setPrefix(event.target.value);
-                  setOffset(0);
-                  setSelectedTreeKey(bucket);
-                }}
-                placeholder="例如 reports/2026/"
-                allowClear
-                style={{ width: 220 }}
-              />
-            </span>
-            <span>
-              状态：
-              <Select
-                value={status}
-                onChange={(value) => {
-                  setStatus(value);
-                  setOffset(0);
-                }}
-                options={[
-                  { value: "active", label: "正常" },
-                  { value: "deleted", label: "已删除" },
-                  { value: "", label: "全部" },
-                ]}
-                style={{ width: 110 }}
-              />
-            </span>
-            <span>
-              排序：
-              <Select
-                value={sortBy}
-                onChange={(value) => {
-                  setSortBy(value);
-                  setOffset(0);
-                }}
-                options={[
-                  { value: "name", label: "按名称" },
-                  { value: "created_at", label: "按创建时间" },
-                ]}
-                style={{ width: 130 }}
-              />
-            </span>
-          </Space>
-          <Table
-            rowKey="id"
-            columns={columns}
-            dataSource={page?.items ?? []}
-            loading={loading}
-            locale={{ emptyText: "没有匹配的文件。" }}
-            pagination={{
-              current: Math.floor(offset / PAGE_SIZE) + 1,
-              pageSize: PAGE_SIZE,
-              total,
-              showSizeChanger: false,
-              showTotal: (count) => `共 ${count} 个文件`,
-              onChange: (nextPage) => setOffset((nextPage - 1) * PAGE_SIZE),
-            }}
-          />
-        </div>
+      </aside>
+      <div className="file-browse-main">
+        <h1>文件浏览</h1>
+        <Space wrap style={{ marginBottom: 16 }}>
+          <span>
+            前缀：
+            <Input
+              value={prefix}
+              onChange={(event) => {
+                setPrefix(event.target.value);
+                setOffset(0);
+                setSelectedTreeKey(bucket);
+              }}
+              placeholder="例如 reports/2026/"
+              allowClear
+              style={{ width: 220 }}
+            />
+          </span>
+          <span>
+            状态：
+            <Select
+              value={status}
+              onChange={(value) => {
+                setStatus(value);
+                setOffset(0);
+              }}
+              options={[
+                { value: "active", label: "正常" },
+                { value: "deleted", label: "已删除" },
+                { value: "", label: "全部" },
+              ]}
+              style={{ width: 110 }}
+            />
+          </span>
+          <span>
+            排序：
+            <Select
+              value={sortBy}
+              onChange={(value) => {
+                setSortBy(value);
+                setOffset(0);
+              }}
+              options={[
+                { value: "name", label: "按名称" },
+                { value: "created_at", label: "按创建时间" },
+              ]}
+              style={{ width: 130 }}
+            />
+          </span>
+        </Space>
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={page?.items ?? []}
+          loading={loading}
+          locale={{ emptyText: "没有匹配的文件。" }}
+          pagination={{
+            current: Math.floor(offset / PAGE_SIZE) + 1,
+            pageSize: PAGE_SIZE,
+            total,
+            showSizeChanger: false,
+            showTotal: (count) => `共 ${count} 个文件`,
+            onChange: (nextPage) => setOffset((nextPage - 1) * PAGE_SIZE),
+          }}
+        />
       </div>
     </div>
   );

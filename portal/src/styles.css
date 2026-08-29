@@ -9,18 +9,32 @@ body { margin: 0; background: #f4f6f9; color: #1c2333; }
 
 .page h1 { font-size: 18px; }
 
-.browser-tree {
+.file-browse { display: flex; align-items: stretch; min-height: calc(100vh - 64px); }
+.file-nav {
   width: 250px;
   flex-shrink: 0;
-  background: #fff;
-  border: 1px solid #e6eaf0;
-  border-radius: 12px;
-  padding: 10px;
+  background: #fafbfd;
+  border-right: 1px solid #e6eaf0;
+  padding: 8px;
+  transition: width 0.2s ease;
   position: sticky;
-  top: 72px;
-  max-height: calc(100vh - 140px);
-  overflow: auto;
+  top: 64px;
+  height: calc(100vh - 64px);
+  overflow: hidden;
 }
+.file-nav.collapsed { width: 44px; padding: 8px 6px; }
+.file-nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #475569;
+}
+.file-nav.collapsed .file-nav-header { justify-content: center; }
+.file-nav-body { overflow: auto; height: calc(100% - 36px); }
+.file-browse-main { flex: 1; min-width: 0; padding: 24px; }
 
 .file-drop {
   border: 2px dashed #b9c2d0;
