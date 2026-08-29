@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { App as AntApp, Button, ConfigProvider, Layout as AntLayout, Menu, Spin } from "antd";
-import { CloudUpload, FolderTree, LogOut } from "lucide-react";
+import { App as AntApp, ConfigProvider, Layout as AntLayout, Menu, Spin } from "antd";
+import { CloudUpload, FolderTree } from "lucide-react";
 import zhCN from "antd/locale/zh_CN";
 import * as api from "./api/client";
 import LoginPage from "./pages/LoginPage";
@@ -15,9 +15,11 @@ type AuthState = "loading" | "login" | "ready";
 function Shell({
   config,
   onLogout,
+  onConfigRefresh,
 }: {
   config: api.ClientConfig;
   onLogout: () => void;
+  onConfigRefresh: () => Promise<void>;
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -49,9 +51,6 @@ function Shell({
             style={{ borderBottom: "none", minWidth: 260 }}
           />
         </div>
-        <Button icon={<LogOut size={16} />} onClick={onLogout}>
-          退出登录
-        </Button>
       </Header>
       <Content
         style={
@@ -62,7 +61,12 @@ function Shell({
       >
         <Routes>
           <Route path="/upload" element={<UploadPage config={config} />} />
-          <Route path="/files" element={<FilesPage config={config} />} />
+          <Route
+            path="/files"
+            element={
+              <FilesPage config={config} onLogout={onLogout} onConfigRefresh={onConfigRefresh} />
+            }
+          />
           <Route path="*" element={<Navigate to="/files" replace />} />
         </Routes>
       </Content>
@@ -77,11 +81,21 @@ export function App() {
   const enterApp = useCallback(() => {
     api
       .fetchConfig()
-      .then((cfg) => {
-        setConfig(cfg);
-        setAuth("ready");
+      .then(async (cfg) => {
+        // client-config 是公开端点；仍需确认当前上下文已鉴权（本地无 token
+        // 且 nginx 未注入时进入登录页），否则所有受保护请求都会 401。
+        if (await api.probeAuthenticated()) {
+          setConfig(cfg);
+          setAuth("ready");
+        } else {
+          setAuth("login");
+        }
       })
       .catch(() => setAuth("login"));
+  }, []);
+
+  const handleConfigRefresh = useCallback(async () => {
+    setConfig(await api.refreshConfig());
   }, []);
 
   useEffect(() => {
@@ -117,7 +131,7 @@ export function App() {
     <ConfigProvider locale={zhCN}>
       <AntApp>
         <BrowserRouter>
-          <Shell config={config!} onLogout={handleLogout} />
+          <Shell config={config!} onLogout={handleLogout} onConfigRefresh={handleConfigRefresh} />
         </BrowserRouter>
       </AntApp>
     </ConfigProvider>

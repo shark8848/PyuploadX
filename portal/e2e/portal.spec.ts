@@ -33,10 +33,14 @@ test.beforeAll(async () => {
 
 async function login(page: Page, key: string = API_KEY): Promise<void> {
   await page.goto("/");
+  // 登录页在鉴权探测完成后才渲染；等待其出现，若 nginx 已注入 token 则直接进入。
   const input = page.getByPlaceholder("请输入 API Key");
-  if (await input.isVisible().catch(() => false)) {
+  try {
+    await input.waitFor({ state: "visible", timeout: 10_000 });
     await input.fill(key);
     await page.locator(".ant-btn-primary").click();
+  } catch {
+    // 已通过注入的 token 免登录进入。
   }
   // 缺省首页为文件浏览（docs 18.2）。
   await expect(page.getByRole("heading", { name: "文件浏览" })).toBeVisible();
@@ -141,4 +145,32 @@ test("刷新页面后队列恢复并完成", async ({ page }) => {
   });
   await page.getByRole("button", { name: "重新选择" }).click();
   await expect(page.locator(".queue-item.completed")).toHaveCount(1, { timeout: 30_000 });
+});
+
+test("左下角提供新建桶/设置/退出", async ({ page }) => {
+  await login(page);
+  await expect(page.locator(".file-nav-footer")).toBeVisible();
+  await expect(page.getByRole("button", { name: "新建桶" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "设置" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "退出" })).toBeVisible();
+});
+
+test("新建存储桶并出现在导航树", async ({ page }) => {
+  await login(page);
+  const name = `e2e-${Date.now().toString(36)}`;
+  await page.getByRole("button", { name: "新建桶" }).click();
+  await page.getByRole("dialog").locator("input").fill(name);
+  await page.getByRole("button", { name: /创\s*建/ }).click();
+  await expect(page.getByText(`存储桶 ${name} 创建成功`)).toBeVisible();
+  await expect(page.locator(".file-nav", { hasText: name })).toBeVisible();
+});
+
+test("存储设置弹窗展示默认桶与有效期", async ({ page }) => {
+  await login(page);
+  await page.getByRole("button", { name: "设置" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("默认存储桶");
+  await expect(dialog).toContainText("下载链接默认有效期");
+  await page.getByRole("button", { name: /取\s*消/ }).click();
+  await expect(dialog).not.toBeVisible();
 });

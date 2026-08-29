@@ -32,6 +32,10 @@ export interface ClientConfig {
       presigned_upload_part: boolean;
     };
   };
+  presign: {
+    default_expires_seconds: number;
+    maximum_expires_seconds: number;
+  };
   lifecycle: {
     enabled: boolean;
     allowed_modes: string[];
@@ -101,6 +105,20 @@ export function setApiToken(token: string | null): void {
   cachedConfig = null;
 }
 
+/**
+ * Probes whether the current browser context is already authenticated
+ * (e.g. the portal nginx injects a valid X-API-Key). A 401 means the app
+ * should show the login page instead of auto-entering.
+ */
+export async function probeAuthenticated(): Promise<boolean> {
+  try {
+    await request("/v1/files?limit=1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function verifyApiKey(key: string): Promise<unknown> {
   return request("/v1/files?limit=1", { headers: { "X-API-Key": key } });
 }
@@ -133,6 +151,45 @@ export async function fetchConfig(): Promise<ClientConfig> {
   }
   cachedConfig = await request<ClientConfig>("/v1/client-config");
   return cachedConfig;
+}
+
+export async function refreshConfig(): Promise<ClientConfig> {
+  cachedConfig = null;
+  return fetchConfig();
+}
+
+export interface StorageSettings {
+  default_bucket: string;
+  presign_default_expires_seconds: number;
+  maximum_expires_seconds: number;
+}
+
+export async function listBuckets(): Promise<string[]> {
+  const data = await request<{ buckets: string[] }>("/v1/buckets");
+  return data.buckets;
+}
+
+export function createBucket(name: string): Promise<{ name: string }> {
+  return request<{ name: string }>("/v1/buckets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function getSettings(): Promise<{ storage: StorageSettings }> {
+  return request<{ storage: StorageSettings }>("/v1/settings");
+}
+
+export function updateSettings(storage: {
+  default_bucket: string;
+  presign_default_expires_seconds?: number;
+}): Promise<{ storage: StorageSettings }> {
+  return request<{ storage: StorageSettings }>("/v1/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ storage }),
+  });
 }
 
 export function uploadFile(

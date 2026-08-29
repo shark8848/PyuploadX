@@ -13,6 +13,8 @@ body { margin: 0; background: #f4f6f9; color: #1c2333; }
 .file-nav {
   width: 250px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
   background: #fafbfd;
   border-right: 1px solid #e6eaf0;
   padding: 8px;
@@ -31,10 +33,39 @@ body { margin: 0; background: #f4f6f9; color: #1c2333; }
   font-weight: 600;
   font-size: 14px;
   color: #475569;
+  flex-shrink: 0;
 }
 .file-nav.collapsed .file-nav-header { justify-content: center; }
-.file-nav-body { overflow: auto; height: calc(100% - 36px); }
+.file-nav-body {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+.file-nav-footer {
+  flex-shrink: 0;
+  border-top: 1px solid #e6eaf0;
+  margin-top: 8px;
+  padding: 8px 4px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.file-nav-footer .ant-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  font-weight: 500;
+}
+.file-nav-footer .ant-btn:hover { color: #2563eb; background: #eff6ff; }
+.file-nav.collapsed .file-nav-footer { align-items: center; padding: 8px 0 4px; }
+.file-nav.collapsed .file-nav-footer .ant-btn { justify-content: center; width: 32px; }
 .file-browse-main { flex: 1; min-width: 0; padding: 24px; }
+
+.form-hint { margin-top: 6px; font-size: 12px; color: #94a3b8; line-height: 1.5; }
+.settings-form { display: flex; flex-direction: column; gap: 18px; }
+.settings-field { display: flex; flex-direction: column; gap: 6px; }
+.settings-field label { font-weight: 600; font-size: 13px; color: #334155; }
 
 .file-drop {
   border: 2px dashed #b9c2d0;

@@ -1420,9 +1420,39 @@ GET /v1/client-config
 - MIME；
 - 生命周期；
 - 目录能力；
-- 冲突策略。
+- 冲突策略；
+- 允许的存储桶（`uploads.allowed_buckets`）与默认存储桶（`uploads.default_bucket`）；
+- Presign 默认/最大有效期（`presign.default_expires_seconds`、`presign.maximum_expires_seconds`）。
 
-## 16.8 错误格式
+## 16.8 桶 API
+
+```text
+GET  /v1/buckets
+POST /v1/buckets
+```
+
+- `GET /v1/buckets`：返回当前租户允许的存储桶列表（配置静态桶 ∪ 该租户已创建的动态桶）。
+- `POST /v1/buckets`：创建存储桶，请求体 `{"name": "my-bucket"}`。
+  桶名须为 3-63 位小写字母、数字、点、中划线，不能以点开头/结尾且不含 `..`
+  （`INVALID_BUCKET_NAME`，422）；同名桶返回 `BUCKET_ALREADY_EXISTS`（409）。
+  创建时会在存储后端真实建桶（Local/S3/MinIO）并持久化到数据库。
+
+## 16.9 设置 API
+
+```text
+GET /v1/settings
+PUT /v1/settings
+```
+
+- `GET /v1/settings`：返回存储相关运行时覆盖，例如
+  `{"storage": {"default_bucket": "...", "presign_default_expires_seconds": 900,
+  "maximum_expires_seconds": 86400}}`。
+- `PUT /v1/settings`：更新存储设置，请求体 `{"storage": {...}}`。
+  `default_bucket` 必须属于当前租户允许的桶；`presign_default_expires_seconds`
+  须在 `[60, maximum_expires_seconds]` 内，否则返回 422。覆盖值持久化到数据库，
+  上传、新建会话、目录上传与 presign 默认有效期即时生效。
+
+## 16.10 错误格式
 
 ```json
 {
@@ -1438,7 +1468,7 @@ GET /v1/client-config
 }
 ```
 
-## 16.9 主要错误码
+## 16.11 主要错误码
 
 ```text
 UPLOAD_NOT_FOUND
@@ -1656,6 +1686,8 @@ OpenAPI Generated Client
   可收缩的 Bucket/目录导航树（点击展开子目录，选择即按桶+前缀过滤），右侧支持状态
   过滤、名称/创建时间排序；逐文件下载、复制下载链接、删除（图标按钮），类似
   MinIO 控制台的文件浏览。
+- 左下角操作区（文件浏览左侧导航底部）：新建桶（§16.8）、存储设置（§16.9，
+  可配置默认存储桶与下载链接默认有效期）、退出登录；导航收缩后仅显示图标。
 - 生命周期选择：上传页可按服务端策略选择 永久 / 定时过期（TTL）/ 滑动过期 /
   指定时间过期，并设置到期动作（删除/通知/仅记录）与 TTL 时长（§14 生命周期策略）。
 - 登录/退出：进入应用前校验 API Key（登录页），登录 Token 保存在 localStorage，关闭浏览器后保持登录。

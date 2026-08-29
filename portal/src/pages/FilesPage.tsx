@@ -1,21 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
-import { App, Button, Input, Select, Space, Table, Tag, Tooltip, Tree } from "antd";
-import { Database, Download, Files, Folder, Link2, PanelLeftClose, PanelLeftOpen, Trash2 } from "lucide-react";
+import { App, Button, Input, InputNumber, Modal, Select, Space, Spin, Table, Tag, Tooltip } from "antd";
+import {
+  Download,
+  FolderPlus,
+  Link2,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings,
+  Trash2,
+} from "lucide-react";
 import type { ColumnsType } from "antd/es/table";
-import type { DataNode } from "antd/es/tree";
 import * as api from "../api/client";
+import { BucketTree } from "../components/BucketTree";
 
 interface Props {
   config: api.ClientConfig;
+  onLogout: () => void;
+  onConfigRefresh: () => Promise<void>;
 }
 
 const PAGE_SIZE = 50;
-const FOLDER_SCAN_LIMIT = 100;
-const FOLDER_SCAN_PAGES = 6;
-
-interface TreeFolder extends DataNode {
-  children?: TreeFolder[];
-}
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) {
@@ -41,68 +46,11 @@ function formatDate(value?: string): string {
   return new Date(value).toLocaleString();
 }
 
-function buildTree(config: api.ClientConfig): TreeFolder[] {
-  return [
-    { key: "", title: "全部文件", icon: <Files size={14} />, isLeaf: true },
-    ...config.uploads.allowed_buckets.map((name) => ({
-      key: name,
-      title: name,
-      icon: <Database size={14} />,
-      isLeaf: false,
-    })),
-  ];
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
-function splitNodeKey(key: string): [string, string] {
-  if (key === "") {
-    return ["", ""];
-  }
-  const slash = key.indexOf("/");
-  if (slash === -1) {
-    return [key, ""];
-  }
-  return [key.slice(0, slash), key.slice(slash + 1)];
-}
-
-function withChildren(nodes: TreeFolder[], key: string, children: TreeFolder[]): TreeFolder[] {
-  return nodes.map((node) => {
-    if (node.key === key) {
-      return { ...node, children };
-    }
-    if (node.children) {
-      return { ...node, children: withChildren(node.children, key, children) };
-    }
-    return node;
-  });
-}
-
-async function collectFolders(bucket: string, prefix: string): Promise<string[]> {
-  const seen = new Set<string>();
-  let offset = 0;
-  for (let page = 0; page < FOLDER_SCAN_PAGES; page += 1) {
-    const result = await api.listFiles({
-      bucket,
-      prefix: prefix || undefined,
-      limit: FOLDER_SCAN_LIMIT,
-      offset,
-      sortBy: "name",
-    });
-    for (const item of result.items) {
-      const rest = item.object_key.slice(prefix.length);
-      const slash = rest.indexOf("/");
-      if (slash > 0) {
-        seen.add(rest.slice(0, slash + 1));
-      }
-    }
-    if (result.offset + result.items.length >= result.total) {
-      break;
-    }
-    offset += result.items.length;
-  }
-  return Array.from(seen).sort();
-}
-
-export default function FilesPage({ config }: Props) {
+export default function FilesPage({ config, onLogout, onConfigRefresh }: Props) {
   const { modal, message: messageApi } = App.useApp();
   const [bucket, setBucket] = useState("");
   const [prefix, setPrefix] = useState("");
@@ -111,11 +59,19 @@ export default function FilesPage({ config }: Props) {
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<api.FilePage | null>(null);
   const [loading, setLoading] = useState(false);
-  const [treeData, setTreeData] = useState<TreeFolder[]>(() => buildTree(config));
-  const [selectedTreeKey, setSelectedTreeKey] = useState("");
-  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
-  const [loadingKeys, setLoadingKeys] = useState<React.Key[]>([]);
   const [navCollapsed, setNavCollapsed] = useState(false);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newBucketName, setNewBucketName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsForm, setSettingsForm] = useState<{
+    default_bucket: string;
+    presign_default_expires_seconds: number;
+  } | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -131,7 +87,7 @@ export default function FilesPage({ config }: Props) {
         }),
       );
     } catch (err) {
-      messageApi.error(`加载失败：${err instanceof Error ? err.message : String(err)}`);
+      messageApi.error(`加载失败：${errorText(err)}`);
     } finally {
       setLoading(false);
     }
@@ -154,7 +110,7 @@ export default function FilesPage({ config }: Props) {
         anchor.remove();
         URL.revokeObjectURL(url);
       } catch (err) {
-        messageApi.error(err instanceof Error ? err.message : String(err));
+        messageApi.error(errorText(err));
       }
     },
     [messageApi],
@@ -167,7 +123,7 @@ export default function FilesPage({ config }: Props) {
         await navigator.clipboard.writeText(url);
         messageApi.success("下载链接已复制（15 分钟有效）");
       } catch (err) {
-        messageApi.error(err instanceof Error ? err.message : String(err));
+        messageApi.error(errorText(err));
       }
     },
     [messageApi],
@@ -187,7 +143,7 @@ export default function FilesPage({ config }: Props) {
             messageApi.success("文件已删除");
             await reload();
           } catch (err) {
-            messageApi.error(err instanceof Error ? err.message : String(err));
+            messageApi.error(errorText(err));
           }
         },
       });
@@ -195,66 +151,65 @@ export default function FilesPage({ config }: Props) {
     [modal, messageApi, reload],
   );
 
-  const onSelect = useCallback((keys: React.Key[]) => {
-    const key = keys.length > 0 ? String(keys[0]) : "";
-    setSelectedTreeKey(key);
-    setOffset(0);
-    if (key === "") {
-      setBucket("");
-      setPrefix("");
+  const handleCreateBucket = useCallback(async () => {
+    const name = newBucketName.trim();
+    if (!name) {
+      messageApi.warning("请输入存储桶名称");
       return;
     }
-    const [nodeBucket, nodePrefix] = splitNodeKey(key);
-    setBucket(nodeBucket);
-    setPrefix(nodePrefix);
-  }, []);
+    setCreating(true);
+    try {
+      await api.createBucket(name);
+      messageApi.success(`存储桶 ${name} 创建成功`);
+      setCreateOpen(false);
+      setNewBucketName("");
+      await onConfigRefresh();
+    } catch (err) {
+      const code = errorText(err);
+      if (code === "BUCKET_ALREADY_EXISTS") {
+        messageApi.error(`存储桶 ${name} 已存在`);
+      } else if (code === "INVALID_BUCKET_NAME") {
+        messageApi.error("桶名不合法：3-63 位小写字母、数字、点、中划线");
+      } else {
+        messageApi.error(`创建失败：${code}`);
+      }
+    } finally {
+      setCreating(false);
+    }
+  }, [newBucketName, messageApi, onConfigRefresh]);
 
-  const onExpand = useCallback(
-    async (keys: React.Key[], info: { expanded: boolean; node: { key: React.Key } }) => {
-      const key = String(info.node.key);
-      setExpandedKeys(keys);
-      if (!info.expanded || key === "" || loadingKeys.includes(key)) {
-        return;
-      }
-      const [nodeBucket, nodePrefix] = splitNodeKey(key);
-      if (!nodeBucket) {
-        return;
-      }
-      const findNode = (nodes: TreeFolder[]): TreeFolder | undefined => {
-        for (const node of nodes) {
-          if (node.key === key) {
-            return node;
-          }
-          if (node.children) {
-            const found = findNode(node.children);
-            if (found) {
-              return found;
-            }
-          }
-        }
-        return undefined;
-      };
-      if (findNode(treeData)?.children) {
-        return;
-      }
-      setLoadingKeys((prev) => [...prev, key]);
-      try {
-        const folders = await collectFolders(nodeBucket, nodePrefix);
-        const children: TreeFolder[] = folders.map((folder) => ({
-          key: key === nodeBucket ? `${nodeBucket}/${folder}` : `${key}/${folder}`,
-          title: folder.replace(/\/$/, ""),
-          icon: <Folder size={14} />,
-          isLeaf: false,
-        }));
-        setTreeData((prev) => withChildren(prev, key, children));
-      } catch {
-        // Ignore: the node simply stays without children.
-      } finally {
-        setLoadingKeys((prev) => prev.filter((item) => item !== key));
-      }
-    },
-    [treeData, loadingKeys],
-  );
+  const openSettings = useCallback(async () => {
+    setSettingsOpen(true);
+    setSettingsLoading(true);
+    try {
+      const { storage } = await api.getSettings();
+      setSettingsForm({
+        default_bucket: storage.default_bucket,
+        presign_default_expires_seconds: storage.presign_default_expires_seconds,
+      });
+    } catch (err) {
+      messageApi.error(`加载设置失败：${errorText(err)}`);
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, [messageApi]);
+
+  const saveSettings = useCallback(async () => {
+    if (!settingsForm) {
+      return;
+    }
+    setSettingsSaving(true);
+    try {
+      await api.updateSettings(settingsForm);
+      messageApi.success("设置已保存");
+      setSettingsOpen(false);
+      await onConfigRefresh();
+    } catch (err) {
+      messageApi.error(`保存失败：${errorText(err)}`);
+    } finally {
+      setSettingsSaving(false);
+    }
+  }, [settingsForm, messageApi, onConfigRefresh]);
 
   const columns: ColumnsType<api.FileInfo> = [
     {
@@ -354,15 +309,37 @@ export default function FilesPage({ config }: Props) {
           />
         </div>
         <div className="file-nav-body">
-          <Tree
-            showIcon
-            blockNode
-            treeData={treeData}
-            selectedKeys={selectedTreeKey ? [selectedTreeKey] : []}
-            expandedKeys={expandedKeys}
-            onExpand={onExpand}
-            onSelect={onSelect}
+          <BucketTree
+            config={config}
+            bucket={bucket}
+            prefix={prefix}
+            onSelect={(nextBucket, nextPrefix) => {
+              setBucket(nextBucket);
+              setPrefix(nextPrefix);
+              setOffset(0);
+            }}
           />
+        </div>
+        <div className="file-nav-footer">
+          <Tooltip title={navCollapsed ? "新建桶" : undefined} placement="right">
+            <Button
+              type="text"
+              icon={<FolderPlus size={16} />}
+              onClick={() => setCreateOpen(true)}
+            >
+              {!navCollapsed && "新建桶"}
+            </Button>
+          </Tooltip>
+          <Tooltip title={navCollapsed ? "设置" : undefined} placement="right">
+            <Button type="text" icon={<Settings size={16} />} onClick={() => void openSettings()}>
+              {!navCollapsed && "设置"}
+            </Button>
+          </Tooltip>
+          <Tooltip title={navCollapsed ? "退出登录" : undefined} placement="right">
+            <Button type="text" icon={<LogOut size={16} />} onClick={onLogout}>
+              {!navCollapsed && "退出"}
+            </Button>
+          </Tooltip>
         </div>
       </aside>
       <div className="file-browse-main">
@@ -375,7 +352,6 @@ export default function FilesPage({ config }: Props) {
               onChange={(event) => {
                 setPrefix(event.target.value);
                 setOffset(0);
-                setSelectedTreeKey(bucket);
               }}
               placeholder="例如 reports/2026/"
               allowClear
@@ -430,6 +406,86 @@ export default function FilesPage({ config }: Props) {
           }}
         />
       </div>
+
+      <Modal
+        title="新建存储桶"
+        open={createOpen}
+        onOk={() => void handleCreateBucket()}
+        confirmLoading={creating}
+        onCancel={() => {
+          setCreateOpen(false);
+          setNewBucketName("");
+        }}
+        okText="创建"
+        cancelText="取消"
+        destroyOnHidden
+      >
+        <Input
+          value={newBucketName}
+          onChange={(event) => setNewBucketName(event.target.value)}
+          onPressEnter={() => void handleCreateBucket()}
+          placeholder="例如 my-bucket"
+          maxLength={63}
+          autoFocus
+        />
+        <div className="form-hint">
+          3-63 位：小写字母、数字、点、中划线；不能以点开头/结尾，不能包含连续的点。
+        </div>
+      </Modal>
+
+      <Modal
+        title="存储设置"
+        open={settingsOpen}
+        onOk={() => void saveSettings()}
+        confirmLoading={settingsSaving}
+        onCancel={() => setSettingsOpen(false)}
+        okText="保存"
+        cancelText="取消"
+        destroyOnHidden
+      >
+        {settingsLoading || !settingsForm ? (
+          <div style={{ textAlign: "center", padding: 24 }}>
+            <Spin />
+          </div>
+        ) : (
+          <div className="settings-form">
+            <div className="settings-field">
+              <label>默认存储桶</label>
+              <Select
+                value={settingsForm.default_bucket}
+                onChange={(value) =>
+                  setSettingsForm((form) => (form ? { ...form, default_bucket: value } : form))
+                }
+                options={config.uploads.allowed_buckets.map((name) => ({
+                  value: name,
+                  label: name,
+                }))}
+                style={{ width: "100%" }}
+              />
+              <div className="form-hint">上传等操作缺省使用的存储桶。</div>
+            </div>
+            <div className="settings-field">
+              <label>下载链接默认有效期（秒）</label>
+              <InputNumber
+                min={60}
+                max={config.presign.maximum_expires_seconds}
+                value={settingsForm.presign_default_expires_seconds}
+                onChange={(value) =>
+                  setSettingsForm((form) =>
+                    form
+                      ? { ...form, presign_default_expires_seconds: value ?? 900 }
+                      : form,
+                  )
+                }
+                style={{ width: "100%" }}
+              />
+              <div className="form-hint">
+                范围 60 - {config.presign.maximum_expires_seconds} 秒。
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
