@@ -66,6 +66,10 @@ def test_list_files_defaults_to_active_only(client, auth_headers):
     assert including_deleted.json()["total"] == 1
     assert including_deleted.json()["items"][0]["object_key"] == "p2/docs/keep.txt"
 
+    # 已删除文件不可再读取/下载：应返回 404 而不是 500。
+    assert client.get(f"/v1/files/{file_id}", headers=auth_headers).status_code == 404
+    assert client.get(f"/v1/files/{file_id}/download", headers=auth_headers).status_code == 404
+
 
 def test_list_files_validates_query_parameters(client, auth_headers):
     assert client.get("/v1/files", headers=auth_headers, params={"limit": 0}).status_code == 422

@@ -169,7 +169,7 @@ class FileService:
         if file_obj is None:
             raise ApiError("FILE_NOT_FOUND", f"File {file_id} does not exist.", status_code=404)
         if file_obj.status == FileStatus.deleted:
-            return
+            raise ApiError("FILE_NOT_FOUND", f"File {file_id} does not exist.", status_code=404)
         return file_obj
 
     async def download(
