@@ -20,8 +20,10 @@ from app.api.v1 import (
     health,
     lifecycle,
     presign,
-    settings as settings_api,
     uploads,
+)
+from app.api.v1 import (
+    settings as settings_api,
 )
 from app.config.loader import load_settings
 from app.config.validation import validate_settings
