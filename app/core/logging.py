@@ -14,13 +14,17 @@ if TYPE_CHECKING:
 
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 trace_id_var: ContextVar[str | None] = ContextVar("trace_id", default=None)
+span_id_var: ContextVar[str | None] = ContextVar("span_id", default=None)
+parent_id_var: ContextVar[str | None] = ContextVar("parent_id", default=None)
 node_id_var: ContextVar[str | None] = ContextVar("node_id", default=None)
 
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
+        ts = datetime.now(UTC).isoformat()
         payload: dict[str, object] = {
-            "timestamp": datetime.now(UTC).isoformat(),
+            "ts": ts,
+            "timestamp": ts,
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -30,6 +34,8 @@ class JsonFormatter(logging.Formatter):
         for name, var in (
             ("request_id", request_id_var),
             ("trace_id", trace_id_var),
+            ("span_id", span_id_var),
+            ("parent_id", parent_id_var),
             ("node_id", node_id_var),
         ):
             value = var.get()

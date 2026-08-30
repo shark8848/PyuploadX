@@ -26,7 +26,7 @@ from app.api.v1 import (
 from app.config.loader import load_settings
 from app.config.validation import validate_settings
 from app.core.errors import register_exception_handlers
-from app.core.logging import configure_logging, request_id_var
+from app.core.logging import configure_logging, request_id_var, trace_id_var
 
 logger = logging.getLogger("upload_service.api")
 
@@ -118,6 +118,7 @@ def create_app(settings: Any = None, config_path: str | None = None) -> FastAPI:
 
             request_id = f"req-{uuid.uuid4().hex[:16]}"
         token = request_id_var.set(request_id)
+        trace_token = trace_id_var.set(request.headers.get("X-Trace-ID") or request_id)
         started = time.perf_counter()
         try:
             response = await call_next(request)
@@ -136,6 +137,7 @@ def create_app(settings: Any = None, config_path: str | None = None) -> FastAPI:
             )
             raise
         finally:
+            trace_id_var.reset(trace_token)
             request_id_var.reset(token)
 
     register_exception_handlers(app)

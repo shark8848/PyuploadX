@@ -2256,6 +2256,9 @@ IKC Log Center 客户端 SDK（PyPI 包 `ikc-log-center`，安装 `pyuploadx-ser
 启用后所有结构化日志在本地输出的同时，由异步批处理 handler 以 HTTP POST 批量投递到
 `{url}/ingest`（默认每批 50 条），认证使用 `Authorization: Bearer <token>`
 （token 从 `LOG_CENTER_TOKEN` 环境变量注入，默认不启用，投递失败静默丢弃，不影响业务）。
+每条投递记录含 `ts`（时间）、`level`、`logger`、`message`、`trace_id`（优先取
+`X-Trace-ID` 请求头，缺省回退为 `request_id`）、`request_id`、`span_id`/`parent_id`
+（预留，缺省为空）等字段，log-center 按 `ts`/`trace_id` 建列并支持链路检索。
 
 ## 23.2 指标
 
