@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger("upload_service.api")
 
 
 class ApiError(Exception):
@@ -246,8 +251,68 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def handle_api_error(request: Request, exc: ApiError) -> JSONResponse:
         request_id = request.headers.get("X-Request-ID")
+        logger.warning(
+            "api error",
+            extra={
+                "extra_fields": {
+                    "code": exc.code,
+                    "error_message": exc.message,
+                    "status_code": exc.status_code,
+                    "retryable": exc.retryable,
+                    "details": exc.details,
+                    "method": request.method,
+                    "path": request.url.path,
+                }
+            },
+        )
         return JSONResponse(
             status_code=exc.status_code,
             content=error_payload(exc, request_id),
             headers={"X-Request-ID": request_id} if request_id else None,
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def handle_validation_error(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        request_id = request.headers.get("X-Request-ID")
+        errors = jsonable_encoder(exc.errors())
+        logger.warning(
+            "request validation error",
+            extra={
+                "extra_fields": {
+                    "status_code": 422,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "errors": errors,
+                }
+            },
+        )
+        return JSONResponse(
+            status_code=422,
+            content={"detail": errors},
+            headers={"X-Request-ID": request_id} if request_id else None,
+        )
+
+    @app.exception_handler(HTTPException)
+    async def handle_http_exception(request: Request, exc: HTTPException) -> JSONResponse:
+        request_id = request.headers.get("X-Request-ID")
+        logger.warning(
+            "http error",
+            extra={
+                "extra_fields": {
+                    "status_code": exc.status_code,
+                    "detail": exc.detail,
+                    "method": request.method,
+                    "path": request.url.path,
+                }
+            },
+        )
+        headers = dict(exc.headers or {})
+        if request_id:
+            headers["X-Request-ID"] = request_id
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=headers or None,
         )

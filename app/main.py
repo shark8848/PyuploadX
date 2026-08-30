@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -25,6 +27,30 @@ from app.config.loader import load_settings
 from app.config.validation import validate_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging, request_id_var
+
+logger = logging.getLogger("upload_service.api")
+
+_HEALTH_PATHS = frozenset({"/healthz", "/readyz", "/startupz", "/health", "/metrics"})
+
+
+def _log_request_outcome(request: Request, status_code: int, started: float) -> None:
+    """Log every HTTP request outcome (skips healthy probes; reports failures)."""
+    path = request.url.path
+    duration_ms = round((time.perf_counter() - started) * 1000, 1)
+    fields = {
+        "method": request.method,
+        "path": path,
+        "status_code": status_code,
+        "duration_ms": duration_ms,
+    }
+    if path in _HEALTH_PATHS:
+        if status_code >= 400:
+            logger.warning("health check failed", extra={"extra_fields": fields})
+        return
+    if status_code >= 400:
+        logger.warning("request failed", extra={"extra_fields": fields})
+    else:
+        logger.info("request completed", extra={"extra_fields": fields})
 
 
 def create_app(settings: Any = None, config_path: str | None = None) -> FastAPI:
@@ -92,10 +118,23 @@ def create_app(settings: Any = None, config_path: str | None = None) -> FastAPI:
 
             request_id = f"req-{uuid.uuid4().hex[:16]}"
         token = request_id_var.set(request_id)
+        started = time.perf_counter()
         try:
             response = await call_next(request)
             response.headers["X-Request-ID"] = request_id
+            _log_request_outcome(request, response.status_code, started)
             return response
+        except Exception:
+            logger.exception(
+                "unhandled exception",
+                extra={
+                    "extra_fields": {
+                        "method": request.method,
+                        "path": request.url.path,
+                    }
+                },
+            )
+            raise
         finally:
             request_id_var.reset(token)
 
