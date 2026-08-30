@@ -2316,7 +2316,32 @@ GET /startupz
 
 # 24. 单节点部署（Standalone）
 
-![单节点部署](assets/png/single-node-deployment.png)
+```mermaid
+flowchart TD
+    subgraph Host["单台服务器（Standalone）"]
+        subgraph App["应用容器（同一镜像库，显式 container_name）"]
+            M["pyuploadx-migrate<br/>alembic upgrade head<br/>一次性 Job"]
+            A["pyuploadx-upload-api<br/>uvicorn :8000"]
+            W["pyuploadx-worker<br/>python -m app.worker.main"]
+        end
+        P["pyuploadx-portal<br/>nginx :5173"]
+        subgraph Third["第三方组件（本地服务 host.docker.internal 或自带 compose）"]
+            PG[("PostgreSQL :5432")]
+            R[("Redis :6379")]
+            S[("MinIO/S3 :9000")]
+        end
+    end
+
+    M -- "迁移成功即退出" --> A
+    M -- "迁移成功即退出" --> W
+    A --> P
+    A --> PG
+    A --> R
+    A --> S
+    W --> PG
+    W --> R
+    W --> S
+```
 
 ## 24.1 运行架构
 
@@ -2410,7 +2435,40 @@ docker compose up -d --build
 
 # 25. 集群部署（Cluster）
 
-![集群部署](assets/png/cluster-deployment.png)
+```mermaid
+flowchart TD
+    C["客户端（SDK / Portal 浏览器）"] --> LB["负载均衡 / Gateway"]
+    LB --> A1["upload-api 副本 1"]
+    LB --> A2["upload-api 副本 2"]
+    LB --> AN["upload-api 副本 N"]
+    LB --> P["portal"]
+    M["migrate（仅执行一次，不参与扩容）"]
+    W1["worker 副本 1"]
+    W2["worker 副本 N"]
+
+    subgraph Shared["共享基础设施"]
+        PG[("PostgreSQL")]
+        R[("Redis")]
+        S[("MinIO/S3 共享存储")]
+    end
+
+    M --> PG
+    A1 --> PG
+    A2 --> PG
+    AN --> PG
+    W1 --> PG
+    W2 --> PG
+    A1 --> R
+    A2 --> R
+    AN --> R
+    W1 --> R
+    W2 --> R
+    A1 --> S
+    A2 --> S
+    AN --> S
+    W1 --> S
+    W2 --> S
+```
 
 ## 25.1 运行架构
 
@@ -3179,25 +3237,20 @@ upload-service/
 ```text
 docs/assets/svg/
 ├── system-architecture.svg
-├── single-node-deployment.svg
-├── cluster-deployment.svg
 └── network-topology.svg
 
 docs/assets/png/
 ├── system-architecture.png
-├── single-node-deployment.png
-├── cluster-deployment.png
 └── network-topology.png
 ```
 
-SVG 是源文件，PNG 是生成文件。
+SVG 是源文件，PNG 是生成文件。单节点 / 集群部署图使用 Mermaid 直接嵌入
+§24 / §25，不再维护 SVG/PNG 版本。
 
 ## 35.2 Markdown 引用
 
 ```markdown
 ![系统总体架构](assets/png/system-architecture.png)
-![单节点部署](assets/png/single-node-deployment.png)
-![集群部署](assets/png/cluster-deployment.png)
 ![生产组网](assets/png/network-topology.png)
 ```
 
