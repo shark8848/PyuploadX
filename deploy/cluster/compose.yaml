@@ -26,14 +26,18 @@ services:
       target: api
     command: ["alembic", "upgrade", "head"]
     environment: *app-env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   upload-api:
     build:
       context: ../..
       target: api
     environment: *app-env
-    ports:
-      - "${API_PORT:-8000}:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # 多副本不发布主机端口（--scale 时端口会冲突），经外部 LB/Gateway 访问；
+    # 本地验证可用 docker exec <replica> curl -s localhost:8000/healthz
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -43,6 +47,8 @@ services:
       context: ../..
       target: worker
     environment: *app-env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       migrate:
         condition: service_completed_successfully

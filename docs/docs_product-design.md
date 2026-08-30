@@ -2517,6 +2517,11 @@ docker compose \
 docker compose -f deploy/cluster/compose.yaml up -d --scale upload-api=5 --scale worker=3
 ```
 
+- `upload-api` 多副本**不发布主机端口**（端口映射与 `--scale` 冲突），对外统一经
+  外部负载均衡（LB/Gateway）访问；
+- 本地验证副本健康：`docker exec pyuploadx-cluster-upload-api-1 curl -s localhost:8000/healthz`；
+- `portal` 保持单副本并发布 `${PORTAL_PORT:-5173}:80`。
+
 ## 25.4 集群约束
 
 - 不使用 SQLite；
