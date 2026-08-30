@@ -1,13 +1,60 @@
 # 集群部署（docs 25）：自带第三方组件 + 多副本应用服务。
-# docker compose -f deploy/cluster/compose.yaml up -d --build --scale api=3 --scale worker=2
+# 注意：不设置 container_name（与 --scale 冲突），容器名由 compose 自动生成。
+# docker compose -f deploy/cluster/compose.yaml up -d --build --scale upload-api=3 --scale worker=2
+name: pyuploadx-cluster
 include:
-  - ../../docker-compose.yml
   - ../../deploy/infra/compose.yaml
 
+x-app-env: &app-env
+  UPLOAD_API_KEYS: '${UPLOAD_API_KEYS:-["dev-key"]}'
+  UPLOAD_DATABASE_URL: '${UPLOAD_DATABASE_URL:-postgresql+asyncpg://upload:upload@postgres:5432/uploads}'
+  UPLOAD_REDIS__ENABLED: '${UPLOAD_REDIS__ENABLED:-true}'
+  UPLOAD_REDIS_URL: '${UPLOAD_REDIS_URL:-redis://redis:6379/0}'
+  UPLOAD_CLUSTER__ENABLED: 'true'
+  UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL: '${UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL:-http://minio:9000}'
+  UPLOAD_STORAGE__S3__PUBLIC_ENDPOINT_URL: '${UPLOAD_STORAGE__S3__PUBLIC_ENDPOINT_URL:-http://localhost:9000}'
+  S3_ACCESS_KEY: '${S3_ACCESS_KEY:-minioadmin}'
+  S3_SECRET_KEY: '${S3_SECRET_KEY:-minioadmin}'
+  UPLOAD_LOG_CENTER__ENABLED: '${UPLOAD_LOG_CENTER__ENABLED:-false}'
+  UPLOAD_LOG_CENTER__URL: '${UPLOAD_LOG_CENTER__URL:-http://log-center:9315}'
+  LOG_CENTER_TOKEN: '${LOG_CENTER_TOKEN:-}'
+
 services:
+  migrate:
+    build:
+      context: ../..
+      target: api
+    command: ["alembic", "upgrade", "head"]
+    environment: *app-env
+
   upload-api:
-    environment:
-      UPLOAD_CLUSTER__ENABLED: "true"
+    build:
+      context: ../..
+      target: api
+    environment: *app-env
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   worker:
+    build:
+      context: ../..
+      target: worker
+    environment: *app-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  portal:
+    build:
+      context: ../../portal
+      args:
+        UPLOAD_API_URL: '${UPLOAD_API_URL:-http://upload-api:8000}'
     environment:
-      UPLOAD_CLUSTER__ENABLED: "true"
+      PORTAL_API_TOKEN: '${PORTAL_API_TOKEN:-}'
+    depends_on:
+      - upload-api
+    ports:
+      - "${PORTAL_PORT:-5173}:80"

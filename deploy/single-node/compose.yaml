@@ -1,5 +1,7 @@
 # 单节点部署（docs 24）：自带第三方组件 + 应用服务。
+# 继承 docker-compose.yml 的显式 container_name（固定单副本，不使用 --scale）。
 # docker compose -f deploy/single-node/compose.yaml up -d --build
+name: pyuploadx
 include:
   - ../../docker-compose.yml
   - ../../deploy/infra/compose.yaml

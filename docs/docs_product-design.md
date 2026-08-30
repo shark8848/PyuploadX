@@ -2314,31 +2314,76 @@ GET /startupz
 
 ---
 
-# 24. 单节点部署
+# 24. 单节点部署（Standalone）
 
 ![单节点部署](assets/png/single-node-deployment.png)
 
-## 24.1 组件
+## 24.1 运行架构
+
+应用服务由**同一代码库、两类镜像体系**构建，拆分为 4 个容器（显式 `container_name`，
+无 `-1` 副本后缀，固定单副本）：
 
 ```text
-Nginx
-Portal
-FastAPI
+Dockerfile（python:3.12-slim）
+├── target api     → pyuploadx-upload-api / pyuploadx-migrate（同一镜像，不同入口）
+└── target worker  → pyuploadx-worker
+
+portal/Dockerfile（Vite 构建 + nginx）
+└── pyuploadx-portal
+```
+
+| 容器 | 镜像目标 | 入口命令 | 生命周期 | 端口 |
+| --- | --- | --- | --- | --- |
+| `pyuploadx-migrate` | api | `alembic upgrade head` | 一次性 Job，成功即退出 | 无 |
+| `pyuploadx-upload-api` | api | `uvicorn app.main:create_app` | 常驻 API | 8000 |
+| `pyuploadx-worker` | worker | `python -m app.worker.main` | 常驻后台任务 | 无 |
+| `pyuploadx-portal` | portal | `nginx` 托管静态资源 | 常驻 Web | 80 → 5173 |
+
+启动顺序（由 compose 依赖保证）：
+
+```text
+migrate（alembic 迁移，成功退出）
+→ upload-api / worker（depends_on: migrate 完成）
+→ portal（依赖 upload-api）
+```
+
+- 容器间通过 compose 服务名通信（`upload-api:8000`、`postgres:5432` 等）；
+- 第三方组件（PostgreSQL / Redis / MinIO）可指向宿主机本地服务
+  （`host.docker.internal`），也可由 `deploy/infra/compose.yaml` 自带；
+- 单节点固定单副本，显式 `container_name` 便于识别，不使用 `--scale`。
+
+## 24.2 组件
+
+```text
+Nginx（Portal）
+FastAPI（upload-api）
 Worker
 PostgreSQL
 Redis
 MinIO
 ```
 
-## 24.2 启动
+## 24.3 启动
+
+自带第三方组件（PostgreSQL / Redis / MinIO 一并启动）：
 
 ```bash
-docker compose \
-  -f deploy/single-node/compose.yaml \
-  up -d --build
+docker compose -f deploy/single-node/compose.yaml up -d --build
 ```
 
-## 24.3 持久化
+连接宿主机已有的本地组件（需自行提供数据库 / Redis / 对象存储）：
+
+```bash
+UPLOAD_DATABASE_URL='postgresql+asyncpg://user:pass@host.docker.internal:5432/dbname' \
+UPLOAD_REDIS_URL='redis://:password@host.docker.internal:6379/0' \
+UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL='http://host.docker.internal:9000' \
+docker compose up -d --build
+```
+
+可选：启用 IKC Log Center 日志投递（`log_center` 配置段，需安装
+`pyuploadx-server[log-center]`，见 §23.1）。
+
+## 24.4 持久化
 
 ```text
 /var/lib/upload-service/
@@ -2350,7 +2395,11 @@ docker compose \
 └── certificates/
 ```
 
-## 24.4 使用场景
+- Local 存储后端的数据目录（`UPLOAD_STORAGE__LOCAL__ROOT_PATH`）；
+- PostgreSQL / Redis / MinIO 卷（自带组件时）；
+- 单机卷即可满足，无需共享文件系统。
+
+## 24.5 使用场景
 
 - 开发；
 - 测试；
@@ -2359,11 +2408,28 @@ docker compose \
 
 ---
 
-# 25. 集群部署
+# 25. 集群部署（Cluster）
 
 ![集群部署](assets/png/cluster-deployment.png)
 
-## 25.1 组件建议
+## 25.1 运行架构
+
+与单节点相比的差异：
+
+```text
+单节点：migrate ×1 + upload-api ×1 + worker ×1 + portal ×1（固定 container_name）
+集群：  migrate ×1（仅执行一次） + upload-api ×N + worker ×N + portal（可多副本）
+        + 外部负载均衡（LB / Gateway）
+```
+
+- `upload-api` 为无状态副本，可水平扩容（`--scale upload-api=N`）；
+- `worker` 为后台任务副本，通过数据库锁 / Redis 领取任务（§20），可独立扩容；
+- `migrate` 始终只运行一次（迁移成功即退出），不参与扩容；
+- 集群模式**不设置 `container_name`**（与 `--scale` 冲突，容器名由 compose 自动生成）；
+- 第三方组件在集群文件内以服务名直连（`postgres` / `redis` / `minio`），
+  `UPLOAD_CLUSTER__ENABLED=true` 开启集群语义。
+
+## 25.2 组件建议
 
 ```text
 Gateway：1个外部LB或2个Gateway
@@ -2377,24 +2443,37 @@ Prometheus
 Grafana
 ```
 
-## 25.2 启动
+## 25.3 启动
 
 ```bash
 docker compose \
   -f deploy/cluster/compose.yaml \
   up -d --build \
-  --scale api=3 \
+  --scale upload-api=3 \
   --scale worker=2
 ```
 
-## 25.3 集群约束
+扩容 / 缩容（不重建镜像）：
+
+```bash
+docker compose -f deploy/cluster/compose.yaml up -d --scale upload-api=5 --scale worker=3
+```
+
+## 25.4 集群约束
 
 - 不使用 SQLite；
-- 不依赖 Sticky Session；
-- Local 后端必须共享文件系统；
-- 所有节点使用相同配置；
-- 所有节点访问相同数据库和存储；
-- 节点故障后 SDK/Portal 自动重试。
+- 不依赖 Sticky Session（API 无状态）；
+- Local 后端必须共享文件系统（NFS 等），S3/MinIO 后端无此要求；
+- 所有节点使用相同配置，访问相同数据库和存储；
+- 节点故障后 SDK/Portal 自动重试；
+- 迁移（migrate）只执行一次：扩容前先确认迁移已完成，避免多副本并发迁移；
+- 滚动发布时保证 Schema 向后兼容（§28.4）。
+
+## 25.5 健康检查与优雅终止
+
+- API 副本：`/healthz`（存活）、`/readyz`（就绪，供 LB 摘除流量）、`/startupz`（启动）；
+- 优雅终止：SIGTERM → Readiness 失败 → 停止接收新请求 → 等待短请求 → 关闭连接（§26.3）；
+- Portal / SDK 对失败请求自动重试，节点故障不中断上传。
 
 ---
 
