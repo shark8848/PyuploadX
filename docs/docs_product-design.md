@@ -164,7 +164,7 @@ Portal：upload-portal
 - Kubernetes 部署模板；
 - Nginx/Gateway；
 - MinIO 初始化；
-- SVG 到 PNG 文档构建。
+- 架构图渲染（SVG→PNG；部署图用 Mermaid 内嵌 §24/§25）。
 
 ## 3.2 暂不实现
 
@@ -2545,6 +2545,7 @@ docker compose -f deploy/cluster/compose.yaml up -d --scale upload-api=5 --scale
 ## 26.1 资源
 
 ```text
+Job/migrate
 Deployment/upload-api
 Deployment/upload-worker
 Deployment/upload-portal
@@ -2564,6 +2565,14 @@ PDB/upload-worker
 
 ServiceMonitor/upload-api
 ```
+
+- 镜像映射：`Dockerfile` target `api` 构建 `upload-api` 与 `migrate`（同一镜像，
+  仅入口不同），target `worker` 构建 `upload-worker`，`portal/Dockerfile` 构建
+  `upload-portal`；
+- 发布前先执行 `Job/migrate`（`alembic upgrade head`，一次成功即完成，模板见
+  `deploy/kubernetes/migrate-job.yaml`），再滚动发布 API/Worker；
+- 可选启用 IKC Log Center 日志投递：在 `ConfigMap/upload-config` 的
+  `log_center` 段配置（默认关闭，见 §23.1）。
 
 ## 26.2 API Deployment
 

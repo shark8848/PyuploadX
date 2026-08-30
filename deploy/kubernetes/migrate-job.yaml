@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: upload-migrate
+  namespace: upload-service
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          # 与 API 同镜像（Dockerfile target api），仅覆盖入口执行 alembic
+          image: pyuploadx/upload-api:latest
+          imagePullPolicy: IfNotPresent
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - secretRef:
+                name: upload-secrets
+          env:
+            - name: UPLOAD_CONFIG_PATH
+              value: /etc/upload-service/config.yaml
+          volumeMounts:
+            - name: config
+              mountPath: /etc/upload-service
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: upload-config

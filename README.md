@@ -61,6 +61,12 @@ docker compose -f deploy/single-node/compose.yaml up -d --build
 docker compose -f deploy/cluster/compose.yaml up -d --build --scale upload-api=3 --scale worker=2
 ```
 
+运行架构：应用由**同一代码库、两类镜像体系**构建（`Dockerfile` target `api` → `upload-api`
+与一次性 `migrate`，target `worker` → `upload-worker`；`portal/Dockerfile` → `upload-portal`）。
+单节点固定单副本（显式 `container_name`）；集群模式使用 `--scale` 水平扩展无状态 API/Worker，
+数据库迁移由 `migrate` 容器（`alembic upgrade head`）在 API 启动前完成。日志可选用
+IKC Log Center 投递（`log_center` 配置段，默认关闭）。
+
 启动后：
 
 - API/OpenAPI：http://localhost:8000/docs
@@ -69,14 +75,19 @@ docker compose -f deploy/cluster/compose.yaml up -d --build --scale upload-api=3
 
 ## Kubernetes 部署
 
-模板位于 `deploy/kubernetes/`（Namespace / Deployment / Service / Ingress / HPA / PDB /
-Secret / ConfigMap / ServiceMonitor）。API 默认 3 副本、`maxUnavailable: 0`、优雅终止 60s，
-并通过 `/readyz` 探针摘除故障节点。ServiceMonitor（`servicemonitor.yaml`）可被
-Prometheus Operator 直接发现：
+模板位于 `deploy/kubernetes/`（Job/migrate / Namespace / Deployment / Service / Ingress /
+HPA / PDB / Secret / ConfigMap / ServiceMonitor）。发布前先执行数据库迁移
+（`Job/upload-migrate`，`alembic upgrade head`，一次成功即完成），再滚动发布 API/Worker。
+API 默认 3 副本、`maxUnavailable: 0`、优雅终止 60s，并通过 `/readyz` 探针摘除故障节点。
+ServiceMonitor（`servicemonitor.yaml`）可被 Prometheus Operator 直接发现：
 
 ```bash
+kubectl apply -f deploy/kubernetes/migrate-job.yaml   # 先执行数据库迁移（一次性 Job）
 kubectl apply -f deploy/kubernetes/
 ```
+
+日志可选投递到 IKC Log Center：在 `ConfigMap/upload-config` 的 `log_center` 段配置
+（默认关闭，`enabled: false`）。
 
 生产强制 HTTPS：Ingress 终止 TLS；单节点/集群部署由 `deploy/nginx/gateway.conf` 强制跳转
 HTTPS 并拒绝非白名单 Origin 的 CORS 请求。

@@ -31,6 +31,16 @@ data:
     cluster:
       enabled: true
       node_id_from_env: HOSTNAME
+    log_center:
+      # 可选：IKC Log Center 远程日志投递（HTTP POST {url}/ingest，需安装 log-center extra）
+      enabled: false
+      url: http://log-center:9315
+      delivery: api
+      timeout_seconds: 2
+      queue_size: 1000
+      batch_size: 50
+      token: null
+      token_from_env: LOG_CENTER_TOKEN
     lifecycle:
       worker:
         scan_interval_seconds: 60
