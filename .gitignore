@@ -24,5 +24,8 @@ portal/node_modules/
 # PyPI credentials (never commit)
 config/pypi.env
 
+# Local docker-compose overrides (never commit; holds tokens / credentials)
+.env
+
 # Build artifacts
 build/
