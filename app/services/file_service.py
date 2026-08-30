@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any, BinaryIO
@@ -23,6 +24,8 @@ from app.directory_upload.paths import normalize_relative_path
 from app.core.permanent_links import sign, verify
 from app.lifecycle.policy import compute_effective_lifecycle
 from app.storage.base import StorageAdapter
+
+logger = logging.getLogger("upload_service.service")
 
 
 def _now() -> datetime:
@@ -159,6 +162,21 @@ class FileService:
         )
         session.add(file_obj)
         await session.flush()
+        logger.info(
+            "upload completed",
+            extra={
+                "extra_fields": {
+                    "tenant_id": identity.tenant_id,
+                    "principal_id": identity.principal_id,
+                    "file_id": str(file_obj.id),
+                    "bucket": file_obj.bucket,
+                    "object_key": file_obj.object_key,
+                    "original_filename": file_obj.original_filename,
+                    "size_bytes": file_obj.size_bytes,
+                    "backend": file_obj.storage_backend,
+                }
+            },
+        )
         return file_obj
 
     async def get(
@@ -266,6 +284,19 @@ class FileService:
         file_obj.deleted_at = _now()
         file_obj.lifecycle_status = LifecycleStatus.deleted
         await session.flush()
+        logger.info(
+            "file deleted",
+            extra={
+                "extra_fields": {
+                    "tenant_id": identity.tenant_id,
+                    "principal_id": identity.principal_id,
+                    "file_id": str(file_obj.id),
+                    "bucket": file_obj.bucket,
+                    "object_key": file_obj.object_key,
+                    "original_filename": file_obj.original_filename,
+                }
+            },
+        )
 
     async def presign_download(
         self,

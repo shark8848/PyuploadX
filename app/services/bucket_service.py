@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,8 @@ from app.core.auth import Identity
 from app.core.errors import ApiError
 from app.db import repositories
 from app.storage.base import StorageAdapter
+
+logger = logging.getLogger("upload_service.service")
 
 _BUCKET_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$")
 
@@ -108,6 +111,16 @@ class BucketService:
             )
         await self.storage.delete_bucket(name)
         await repositories.bucket_repository.delete(session, record)
+        logger.info(
+            "bucket deleted",
+            extra={
+                "extra_fields": {
+                    "tenant_id": identity.tenant_id,
+                    "principal_id": identity.principal_id,
+                    "bucket": name,
+                }
+            },
+        )
         return {"name": name}
 
     async def is_bucket_allowed(

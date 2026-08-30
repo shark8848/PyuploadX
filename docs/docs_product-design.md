@@ -2406,7 +2406,9 @@ docker compose up -d --build
 ```
 
 可选：启用 IKC Log Center 日志投递（`log_center` 配置段，需安装
-`pyuploadx-server[log-center]`，见 §23.1）。
+`pyuploadx-server[log-center]`，见 §23.1）。Compose 默认投递地址为
+`UPLOAD_LOG_CENTER__URL=http://host.docker.internal:9315`（宿主机 host 网络的
+log-center 服务；Kubernetes 内使用服务名 `http://log-center:9315`）。
 
 ## 24.4 持久化
 

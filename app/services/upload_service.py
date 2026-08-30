@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -42,6 +43,8 @@ from app.lifecycle.policy import compute_effective_lifecycle
 from app.lifecycle.state_machine import transition_upload
 from app.storage.base import StorageAdapter
 from app.storage.local import LocalStorageAdapter
+
+logger = logging.getLogger("upload_service.service")
 
 
 def _now() -> datetime:
@@ -509,6 +512,21 @@ class UploadService:
         metrics.upload_complete_total.inc()
         metrics.upload_active_sessions.dec()
         await session.flush()
+        logger.info(
+            "upload completed",
+            extra={
+                "extra_fields": {
+                    "tenant_id": identity.tenant_id,
+                    "principal_id": identity.principal_id,
+                    "file_id": str(file_obj.id),
+                    "bucket": file_obj.bucket,
+                    "object_key": file_obj.object_key,
+                    "original_filename": file_obj.original_filename,
+                    "size_bytes": file_obj.size_bytes,
+                    "upload_id": str(upload.id),
+                }
+            },
+        )
         return file_obj
 
     async def abort(
