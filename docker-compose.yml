@@ -20,6 +20,7 @@ x-app-env: &app-env
 
 services:
   migrate:
+    container_name: pyuploadx-migrate
     build:
       context: .
       target: api
@@ -29,6 +30,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   upload-api:
+    container_name: pyuploadx-upload-api
     build:
       context: .
       target: api
@@ -42,6 +44,7 @@ services:
         condition: service_completed_successfully
 
   worker:
+    container_name: pyuploadx-worker
     build:
       context: .
       target: worker
@@ -53,6 +56,7 @@ services:
         condition: service_completed_successfully
 
   portal:
+    container_name: pyuploadx-portal
     build:
       context: portal
       args:
