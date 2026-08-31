@@ -276,16 +276,17 @@ docker run -d --name pyuploadx-worker --restart unless-stopped \
 #### 6) Portal
 
 ```bash
+# 示例 token：1qaz2wsx3edc（换成你自己的，必须与 .env 中 UPLOAD_API_KEYS 里的值一致）
 docker run -d --name pyuploadx-portal --restart unless-stopped \
   --network pyuploadx-net \
-  -e PORTAL_API_TOKEN=<实际 token，与 UPLOAD_API_KEYS 中的值一致> \
+  -e PORTAL_API_TOKEN=1qaz2wsx3edc \
   -p 5173:80 \
   pyuploadx-portal:latest
 ```
 
-> 不要照抄占位符：`<实际 token>` 换成与 `.env` 中 `UPLOAD_API_KEYS` 一致的值，例如
-> `-e PORTAL_API_TOKEN=1qaz2wsx3edc`。若浏览器登录页曾手动输入过其它 key（localStorage），
-> 客户端 key 会覆盖 nginx 注入值，请清除后重试或输入同一个 key。
+> 不要照抄示例 token：换成与 `.env` 中 `UPLOAD_API_KEYS` 一致的值，且 `PORTAL_API_TOKEN`
+> 必须用 `-e` 显式传入（portal 容器不读 `.env`）。若浏览器登录页曾手动输入过其它 key
+> （localStorage 键名 `portal-token`），客户端 key 会覆盖 nginx 注入值，清除后重试。
 
 #### 7) 验证与访问
 
@@ -317,6 +318,16 @@ docker run --rm --name pyuploadx-migrate \
   pyuploadx-migrate:latest alembic upgrade head
 # 再按第 5、6 步重新 run
 
+# 单独更新 portal（如修复后新镜像）：load → 删旧容器 → 重新 run
+docker load -i pyuploadx-portal_latest.tar
+docker rm -f pyuploadx-portal
+docker run -d --name pyuploadx-portal --restart unless-stopped \
+  --network pyuploadx-net \
+  -e PORTAL_API_TOKEN=1qaz2wsx3edc \
+  -p 5173:80 \
+  pyuploadx-portal:latest
+# 确认新前端生效：docker exec pyuploadx-portal sh -c 'ls /usr/share/nginx/html/assets/ | grep index'
+
 # 清理（不影响数据）
 docker rm -f pyuploadx-upload-api pyuploadx-worker pyuploadx-portal
 docker network rm pyuploadx-net
@@ -324,6 +335,10 @@ docker network rm pyuploadx-net
 
 - 数据均在外部（PG/Redis/MinIO 卷或宿主目录），删除容器不丢数据；
   MinIO 备份见第 9 节。
+- 登录点「登录」报「API Key 无效」且 portal/API 日志无 `/v1/files` 请求：多为浏览器
+  仍加载旧前端包。旧版本 JS 在明文 HTTP（局域网 IP）下调用 `crypto.randomUUID()`（仅
+  HTTPS/localhost 可用）会在发请求前抛错；更新到含回退逻辑的新 portal 镜像后
+  强制刷新（Ctrl+Shift+R）即可。
 
 ## 9. 常用运维
 
