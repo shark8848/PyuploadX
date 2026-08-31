@@ -2440,6 +2440,8 @@ log-center 服务；Kubernetes 内使用服务名 `http://log-center:9315`）。
 
 - Local 存储后端的数据目录（`UPLOAD_STORAGE__LOCAL__ROOT_PATH`）；
 - PostgreSQL / Redis / MinIO 卷（自带组件时）；
+- 数据全部外部持久化：镜像只包含程序，数据库与对象存储数据通过 compose 命名卷或宿主目录
+  挂载，重建 / 升级容器不丢数据；
 - 单机卷即可满足，无需共享文件系统。
 
 ## 24.5 使用场景

@@ -54,6 +54,9 @@ docker compose -f deploy/infra/compose.yaml up -d          # postgres/redis/mini
 docker compose up -d --build                               # 应用服务
 ```
 
+> 自带组件的数据通过命名卷外部持久化（`postgres-data` / `minio-data`），不进镜像；
+> 删除 / 重建容器数据保留；备份直接针对卷或宿主目录操作。
+
 单节点/集群一键（含组件）：
 
 ```bash
