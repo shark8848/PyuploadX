@@ -227,8 +227,10 @@ EOF
 > 前提：PG/Redis 监听局域网地址（PG `listen_addresses` 含该网段、`pg_hba.conf` 放行应用宿主 IP；
 > Redis `bind` 含该网段或 `0.0.0.0` 并设 `requirepass`），且对方防火墙允许应用宿主访问。
 
-> `REPLACE_PORTAL_TOKEN` 必须与 portal 容器的 `PORTAL_API_TOKEN` 一致：portal 的 nginx 会把它作为
-> `X-API-Key` 注入 `/v1/` 请求，API 侧通过 `UPLOAD_API_KEYS` 校验。
+> **portal 容器不读取 `.env`**：`--env-file .env` 只对 API/Worker/Migrate 生效；portal 的
+> token 必须用第 6 步的 `-e PORTAL_API_TOKEN=<实际值>` 显式传入。该值必须同时出现在
+> `UPLOAD_API_KEYS` 中（如 `["dev-key","<实际值>"]`），否则 portal 注入的 `X-API-Key`
+> 与 API 侧校验列表不匹配，登录报验证错误。
 
 #### 3) MinIO 建桶引导（全新实例才需要）
 
@@ -276,10 +278,14 @@ docker run -d --name pyuploadx-worker --restart unless-stopped \
 ```bash
 docker run -d --name pyuploadx-portal --restart unless-stopped \
   --network pyuploadx-net \
-  -e PORTAL_API_TOKEN=REPLACE_PORTAL_TOKEN \
+  -e PORTAL_API_TOKEN=<实际 token，与 UPLOAD_API_KEYS 中的值一致> \
   -p 5173:80 \
   pyuploadx-portal:latest
 ```
+
+> 不要照抄占位符：`<实际 token>` 换成与 `.env` 中 `UPLOAD_API_KEYS` 一致的值，例如
+> `-e PORTAL_API_TOKEN=1qaz2wsx3edc`。若浏览器登录页曾手动输入过其它 key（localStorage），
+> 客户端 key 会覆盖 nginx 注入值，请清除后重试或输入同一个 key。
 
 #### 7) 验证与访问
 
