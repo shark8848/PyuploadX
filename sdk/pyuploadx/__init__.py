@@ -17,7 +17,7 @@ from pyuploadx.exceptions import (
 )
 from pyuploadx.lifecycle import FileLifecycle
 
-__version__ = "0.10.0"
+__version__ = "0.10.1"
 
 __all__ = [
     "Client",
