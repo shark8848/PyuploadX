@@ -70,6 +70,16 @@ docker compose -f deploy/cluster/compose.yaml up -d --build --scale upload-api=3
 数据库迁移由 `migrate` 容器（`alembic upgrade head`）在 API 启动前完成。日志可选用
 IKC Log Center 投递（`log_center` 配置段，默认关闭）。
 
+一键构建全部项目镜像（upload-api / worker / portal / migrate / 加固 MinIO）：
+
+```bash
+bash scripts/build-images.sh            # 构建全部项目镜像
+bash scripts/build-images.sh --export   # 构建并 docker save 导出到 docker/images/
+```
+
+加固 MinIO 镜像 `pyuploadx/minio-haproxy:latest` 让 MinIO 仅监听容器内回环地址、外部只走
+HAProxy（9000 S3 / 9001 控制台）；数据必须外部挂载（`-v /data/minio:/data`），不进镜像。
+
 启动后：
 
 - API/OpenAPI：http://localhost:8000/docs

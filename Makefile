@@ -1,4 +1,4 @@
-.PHONY: install dev test lint build migrate diagrams diagrams-force docs-check portal-build compose-up compose-down benchmark test-minio
+.PHONY: install dev test lint build build-images migrate diagrams diagrams-force docs-check portal-build compose-up compose-down benchmark test-minio
 
 install:
 	python -m pip install -e ".[dev,docs]"
@@ -14,6 +14,9 @@ lint:
 
 build:
 	python -m compileall -q app sdk upload_service
+
+build-images:
+	bash scripts/build-images.sh
 
 migrate:
 	alembic upgrade head

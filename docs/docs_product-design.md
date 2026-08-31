@@ -2379,6 +2379,14 @@ portal/Dockerfile（Vite 构建 + nginx）
 | `pyuploadx-upload-api` | api | `uvicorn app.main:create_app` | 常驻 API | 8000 |
 | `pyuploadx-worker` | worker | `python -m app.worker.main` | 常驻后台任务 | 无 |
 | `pyuploadx-portal` | portal | `nginx` 托管静态资源 | 常驻 Web | 80 → 5173 |
+| `pyuploadx/minio-haproxy` | 加固 MinIO | 回环 MinIO + HAProxy 前置 | 常驻存储 | 9000 / 9001 |
+
+一键构建全部项目镜像：
+
+```bash
+bash scripts/build-images.sh            # api / worker / portal / migrate / pyuploadx/minio-haproxy
+bash scripts/build-images.sh --export   # 构建并 docker save 导出到 docker/images/
+```
 
 启动顺序（由 compose 依赖保证）：
 
