@@ -14,6 +14,8 @@
 | `0.6.0` | `v0.6.0` | `dist/pyuploadx-0.6.0-py3-none-any.whl` | download URL 模式（`use_url` 自动选择/降级）与 `download_from_url` |
 | `0.7.0` | `v0.7.0` | `dist/pyuploadx-0.7.0-py3-none-any.whl` | 简化 download：默认代理流式；`url=` 或 `download_from_url` 直接下载 URL（移除 `use_url`/`expires_seconds` 自动逻辑） |
 | `0.8.0` | `v0.8.0` | `dist/pyuploadx-0.8.0-py3-none-any.whl` | 多线程下载：`concurrency=N` 并发 Range 分片（服务端不支持时自动回退单流） |
+| `0.9.0` | — | `dist/pyuploadx-0.9.0-py3-none-any.whl` | 新增 `list_files` 分页文件列表（§16.2） |
+| `0.10.0` | `v0.10.0` | `dist/pyuploadx-0.10.0-py3-none-any.whl` | 新增通用 `Client` 类：`upload()` 自动分派（目录/大文件/小文件）+ `filename_from_url()` 从 URL 解析原始文件名 |
 
 ## pyuploadx-server（服务端，构建于仓库根）
 
