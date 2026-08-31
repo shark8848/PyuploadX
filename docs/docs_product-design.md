@@ -1524,46 +1524,50 @@ SDK 完整开发文档（方法参考、数据模型、异常映射、测试与�
 ## 17.1 基础用法
 
 ```python
-from pyuploadx import UploadClient
+from pyuploadx import Client
 
-client = UploadClient(
+client = Client(
     base_url="https://uploads.example.com",
     bearer_token="...",
     state_dir="~/.pyuploadx/uploads",
 )
 
-result = client.upload_file(
+result = client.upload(
     "./README.md",
     bucket="app-default",
 )
 ```
 
-> 通用客户端：`Client` 是 `UploadClient` 的通用扩展（上传 + 下载，不修改原类），
-> 全部 `UploadClient` 方法保持不变，并额外提供 `upload()`（目录 / 大文件 / 小文件自动
-> 选择策略）与 `filename_from_url()`（从下载 URL 解析原始文件名）。
-> `from pyuploadx import Client`，初始化参数与 `UploadClient` 完全一致。
+`Client` 是推荐入口（上传 + 下载通用，为 `UploadClient` 的兼容扩展，原类未改动）：
+`upload()` 按路径自动选择策略（目录 → 目录上传；≥ `large_file_threshold` 默认 8 MiB →
+Multipart 分片；否则 → Proxy 小文件上传），`filename_from_url()` 从下载 URL 解析原始文件名。
+初始化参数与 `UploadClient` 完全一致，旧代码兼容。
 
 ## 17.2 大文件
 
 ```python
-result = client.upload_large_file(
-    file_path="./model.bin",
+# 大文件（>= large_file_threshold，默认 8 MiB）自动走 Multipart 分片 + 断点续传
+result = client.upload(
+    "./model.bin",
     bucket="app-default",
     object_key="models/model.bin",
     part_size=8 * 1024 * 1024,
     concurrency=4,
-    resume=True,
 )
+# 精细控制（含 resume）等价于 client.upload_large_file(..., resume=True)
 ```
 
 ## 17.3 生命周期
 
 ```python
 from datetime import timedelta
-from pyuploadx.lifecycle import FileLifecycle
+from pyuploadx import Client, FileLifecycle
 
-result = client.upload_file(
+client = Client(base_url="https://uploads.example.com", bearer_token="...")
+
+result = client.upload(
     "./report.pdf",
+    bucket="app-default",
     lifecycle=FileLifecycle.ttl(
         timedelta(days=30),
     ),
@@ -1583,26 +1587,23 @@ FileLifecycle.sliding_ttl(timedelta(days=7))
 ## 17.4 目录上传
 
 ```python
-result = client.upload_directory(
-    directory_path="./album-assets",
+# 目录上传：Client.upload 自动分派（等价于 upload_directory，参数一致）
+result = client.upload(
+    "./album-assets",
     bucket="app-default",
     destination_prefix="artists/10001/albums/2026",
-    recursive=True,
-    resume=True,
-    file_concurrency=8,
-    part_concurrency=4,
     include=["**/*"],
     exclude=[
         ".git/**",
         "**/.DS_Store",
         "**/*.tmp",
     ],
-    symlink_policy="ignore",
-    conflict_policy="reject",
     lifecycle=FileLifecycle.ttl(
         timedelta(days=30),
     ),
 )
+# 精细控制（recursive/resume/file_concurrency/part_concurrency/symlink_policy/conflict_policy）
+# 等价于 client.upload_directory(...)。
 ```
 
 ## 17.5 SDK 异常
@@ -1645,7 +1646,9 @@ pyuploadx/
 
 上传接口同步返回结果对象；服务端状态可通过以下查询接口随时获取（对应 §16 REST API）：
 
-- `upload_file()` / `upload_large_file()` → `FileInfo`（`id`/`status`/`etag`/`size_bytes`/`lifecycle_mode`/`expires_at`/`legal_hold`）。
+- `Client.upload()` 自动分派：目录 → `upload_directory()`；文件 ≥ `large_file_threshold`
+  （默认 8 MiB）→ `upload_large_file()`；否则 → `upload_file()`；三者分别返回
+  `DirectoryJobInfo` / `FileInfo`（`id`/`status`/`etag`/`size_bytes`/`original_filename`/`lifecycle_mode`/`expires_at`/`legal_hold`）。
 - `upload_file()` / `upload_large_file()` 支持 `directory` 参数（如 `reports/2026`），自动拼接
   `object_key = <directory>/<文件名>`（显式 `object_key` 优先）。
 - 上传响应附带临时 `download_url`/`expires_in`（预签名 GET；Local 后端为 `None`）；
@@ -1654,21 +1657,26 @@ pyuploadx/
 - `upload_directory()` → `DirectoryJobInfo`（`status`/`uploaded_files`/`uploaded_bytes`/`failed_files`/`skipped_files`；SDK 逐条上报条目结果，服务端聚合统计）。
 - `get_file(file_id)` → 文件最新 `FileInfo`；`get_upload(upload_id)` → 分片会话最新状态；`get_directory_job(job_id)` → 目录任务最新状态。
 - `get_lifecycle(file_id)` / `update_lifecycle(...)` / `extend_lifecycle(...)` / `set_legal_hold(...)` → 生命周期查询与变更。
-- `download(file_id, dest, *, url=None, progress=None, concurrency=1)` → 默认代理流式下载；传入
-  `url=` 直接从预签名/永久链接 URL 下载（无需预签名探测或后端判断）。`download_from_url(url, dest, *,
-  progress=None, concurrency=1)` 等价且无需 `file_id`。`concurrency>1` 时按 HTTP Range 并发分片
-  （服务端不支持时自动回退单流）；两者均逐块写盘不整体缓冲，`progress(written, total)` 可选回调；
-  `delete(file_id)` 幂等删除。
+- `download(file_id, dest, *, url=None, progress=None, concurrency=1)` → 默认代理流式下载，返回
+  本地落盘 `Path`（`Path.name` 即本地文件名）；传入 `url=` 直接从预签名/永久链接 URL 下载（无需
+  预签名探测或后端判断）。`download_from_url(url, dest, *, progress=None, concurrency=1)` 等价且
+  无需 `file_id`。`concurrency>1` 时按 HTTP Range 并发分片（服务端不支持时自动回退单流）；
+  两者均逐块写盘不整体缓冲，`progress(written, total)` 可选回调；`delete(file_id)` 幂等删除。
+- `filename_from_url(url)`（`Client` 提供）→ 从下载 URL 解析原始文件名：API 下载/永久链接回查
+  元数据 `original_filename`，预签名 URL 取路径末段（URL 解码），无法确定返回 `None`。
 
 ```python
-info = client.upload_file("./README.md", bucket="app-default")
+info = client.upload("./README.md", bucket="app-default")
 print(info.id, info.status, info.size_bytes)          # 同步返回结果
 
 info = client.get_file(info.id)                        # 事后查询文件最新状态
 session = client.get_upload(session_id)                # 分片会话状态
 job = client.get_directory_job(job_id)                 # 目录任务统计
 lifecycle = client.get_lifecycle(info.id)
-client.download(info.id, "/tmp/README.md")
+saved = client.download(info.id, "/tmp/README.md")     # 返回落盘 Path
+print(saved.name, info.original_filename)              # 本地文件名 / 服务端原始文件名
+url = client.get_download_url(info.id)
+print(client.filename_from_url(url))                   # 通过 URL 解析文件名
 ```
 
 ---

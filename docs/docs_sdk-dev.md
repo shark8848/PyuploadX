@@ -13,19 +13,23 @@ pip install dist/pyuploadx-0.10.0-py3-none-any.whl  # 或仓库直装（历史�
 
 ## 2. 客户端初始化
 
-```python
-from pyuploadx import UploadClient
+`Client` 是推荐入口（上传 + 下载通用，为 `UploadClient` 的兼容扩展，原类未改动），
+初始化参数与 `UploadClient` 完全一致：
 
-client = UploadClient(
+```python
+from pyuploadx import Client
+
+client = Client(
     base_url="https://uploads.example.com",   # 必填；API 服务地址
     bearer_token="...",                        # 与 api_key 二选一
     # api_key="dev-key",
     state_dir="~/.pyuploadx/uploads",          # 断点续传本地状态目录（默认）
     timeout=60.0,                              # httpx 超时（秒）
+    large_file_threshold=8 * 1024 * 1024,      # upload() 大/小文件分界（默认 8 MiB）
 )
 
 with client as c:                              # 上下文管理器，自动 close
-    info = c.upload_file("./README.md", bucket="app-default")
+    info = c.upload("./README.md", bucket="app-default")
 
 client.on_progress(lambda uploaded, total: print(f"{uploaded}/{total}"))  # 上传进度
 ```
@@ -33,12 +37,8 @@ client.on_progress(lambda uploaded, total: print(f"{uploaded}/{total}"))  # 上�
 - 认证：`bearer_token`（`Authorization: Bearer`）或 `api_key`（`X-API-Key`），必须二选一。
 - `transport` 参数可注入自定义 `httpx.BaseTransport`（测试用内存 ASGI 传输）。
 - 客户端是线程安全的会话封装；`close()` 释放连接池。
-
-> 通用客户端：`Client` 是 `UploadClient` 的通用扩展（上传 + 下载，不修改原类），
-> `UploadClient` 的全部方法保持不变，并额外提供 `upload()` 自动按路径选择策略：
-> 目录 → `upload_directory`；文件 ≥ `large_file_threshold`（默认 8 MiB）→
-> `upload_large_file`；否则 → `upload_file`。新代码推荐使用 `Client`：
-> `from pyuploadx import Client`，初始化参数与 `UploadClient` 完全一致。
+- 兼容：`UploadClient` 全部方法与参数保持不变，旧代码无需修改；`Client` 额外提供
+  `upload()`（目录 / 大文件 / 小文件自动选择策略）与 `filename_from_url()`（从 URL 解析原始文件名）。
 
 ## 3. 方法参考
 
@@ -83,9 +83,9 @@ client.on_progress(lambda uploaded, total: print(f"{uploaded}/{total}"))  # 上�
 
 ```python
 # 上传响应自带临时预签名下载 URL（S3/MinIO；Local 后端为 None）
-info = client.upload_file("./README.md", bucket="app-default")
+info = client.upload("./README.md", bucket="app-default")
 print(info.id, info.status, info.size_bytes)
-print(info.download_url, info.expires_in)              # 临时 URL 与有效秒数
+print(info.original_filename, info.download_url, info.expires_in)   # 原始文件名 / 临时 URL 与有效秒数
 
 # 过期后重新获取
 url = client.get_download_url(info.id, expires_seconds=3600)
@@ -102,8 +102,15 @@ job = client.get_directory_job(job_id)                 # uploaded_files / failed
 lifecycle = client.get_lifecycle(info.id)
 client.update_lifecycle(info.id, {"mode": "ttl", "ttl_seconds": 3600})
 
-# 下载与删除（默认代理流式下载；需要 URL 时显式传入）
-client.download(info.id, "/tmp/README.md")          # 代理流式；progress(written, total) 可选
+# 下载：返回本地落盘 Path，可直接输出文件名
+saved = client.download(info.id, "/tmp/README.md")  # 代理流式；progress(written, total) 可选
+print(saved, saved.name)                            # /tmp/README.md 与本地文件名
+print(info.original_filename)                       # 服务端原始文件名
+
+# 通过 URL 获取原始文件名（预签名 URL / 永久链接均可）
+print(client.filename_from_url(url))                # 预签名 URL -> object_key 末段（URL 解码）
+
+# 其它下载方式与删除
 client.download(info.id, "/tmp/README.md", url=url)  # 直接使用预签名/永久链接 URL
 client.download_from_url(url, "/tmp/README.md")     # 等价，无需 file_id
 client.download(info.id, "/tmp/big.bin", concurrency=8)  # 超大文件：并发 Range 分片
@@ -113,50 +120,102 @@ client.delete(info.id)
 - `download_url` 有有效期（`expires_in`，默认 900 秒，上限 86400），完整 URL 不会写入服务端日志。
 - Local 存储不支持预签名（`presigned_get=False`）：上传响应 `download_url=None`、
   `get_download_url()` 返回 `None`，此时请使用 `download()` 走服务端代理下载。
+- 文件名：`download()` / `download_from_url()` 返回本地落盘 `Path`（`Path.name` 即本地文件名）；
+  服务端原始文件名在 `FileInfo.original_filename`；URL 场景用 `filename_from_url(url)`。
 
-## 6. 指定目录上传、返回 URL 与 URL 下载
+## 6. 通用上传策略、URL 下载与文件名
+
+### 6.1 通用上传：Client.upload 自动分派
+
+`Client.upload(source, *, bucket, ...)` 按路径自动选择策略；需要精细控制时仍可直接调用
+`upload_file()` / `upload_large_file()` / `upload_directory()`：
+
+```python
+from datetime import timedelta
+from pyuploadx import Client, FileLifecycle
+
+client = Client(base_url="http://localhost:8000", api_key="dev-key")
+
+# 小文件（< large_file_threshold，默认 8 MiB）-> Proxy 上传；directory 自动拼 object_key
+info = client.upload(
+    "./report.pdf",
+    bucket="app-default",
+    directory="reports/2026",                # => object_key: reports/2026/report.pdf
+    lifecycle=FileLifecycle.ttl(timedelta(days=30)),
+)
+
+# 大文件（>= 8 MiB）-> Multipart 分片 + 断点续传
+large = client.upload(
+    "./model.bin",
+    bucket="app-default",
+    directory="models/backup",               # => object_key: models/backup/model.bin
+    part_size=8 * 1024 * 1024,
+    concurrency=4,
+)
+
+# 目录 -> 目录上传（Manifest + .uploadignore）
+job = client.upload(
+    "./album-assets",
+    bucket="app-default",
+    destination_prefix="artists/10001/albums/2026",
+    exclude=[".git/**", "**/*.tmp"],
+    conflict_policy="reject",
+)
+```
+
+- `large_file_threshold` 在 `Client(...)` 构造时指定（默认 8 MiB），`part_size` / `concurrency` 等
+  参数在大文件与目录场景透传给对应策略。
+- `directory` 经 `normalize_relative_path` 归一化：去首尾 `/`、`\` 转 `/`、拒绝
+  `.`/`..`/绝对路径/盘符路径；`object_key` 与 `directory` 同时给出时以 `object_key` 为准。
+
+### 6.2 返回 URL
+
+上传响应自带临时预签名下载 URL（`expires_in` 秒；Local 后端为 `None`），过期后可重新获取：
+
+```python
+print(info.download_url, info.expires_in)                      # 上传响应
+url = client.get_download_url(info.id, expires_seconds=3600)   # 过期后重新获取
+```
+
+### 6.3 URL 下载与文件名
 
 ```python
 import httpx
 
-# 1) 指定目录上传：object_key = <directory>/<文件名>（object_key 显式传入时优先）
-info = client.upload_file(
-    "./report.pdf",
-    bucket="app-default",
-    directory="reports/2026",          # => object_key: reports/2026/report.pdf
+# 1) 通过 URL 获取原始文件名
+filename = client.filename_from_url(url)        # 预签名 URL：object_key 末段（URL 解码）
+print(filename)                                 # => report.pdf
+#    永久链接（/v1/files/{id}/download-link）：自动回查元数据 original_filename
+
+# 2) 下载并输出文件名：download_from_url 返回本地落盘 Path
+saved = client.download_from_url(
+    url,
+    f"/tmp/{filename}",
+    progress=lambda done, total: print(f"{done}/{total}"),   # 流式写盘，可选进度回调
 )
-large = client.upload_large_file(
-    "./model.bin",
-    bucket="app-default",
-    directory="models/backup",         # => object_key: models/backup/model.bin
-)
+print(saved, saved.name)                        # /tmp/report.pdf 与本地文件名
 
-# 2) 上传响应返回临时预签名下载 URL（expires_in 秒；Local 后端为 None）
-print(info.download_url, info.expires_in)
-url = client.get_download_url(info.id, expires_seconds=3600)   # 过期后重新获取
+# 等价：client.download(info.id, f"/tmp/{filename}", url=url)  # 需 file_id
 
-# 3) 使用 URL 下载：SDK 流式写盘，不占内存，支持 progress 回调
-client.download_from_url(url, "/tmp/report.pdf",
-                         progress=lambda done, total: print(f"{done}/{total}"))
-# 或：client.download(info.id, "/tmp/report.pdf", url=url)  # 等价，需 file_id
-
-# 等价实现：原始 httpx 流式写盘
+# 3) 原始 httpx 等价实现
 with httpx.stream("GET", url, follow_redirects=True) as resp:
     resp.raise_for_status()
-    with open("/tmp/report.pdf", "wb") as f:
+    with open(f"/tmp/{filename}", "wb") as f:
         for chunk in resp.iter_bytes():
             f.write(chunk)
 ```
 
-- `directory` 经 `normalize_relative_path` 归一化：去首尾 `/`、`\` 转 `/`、拒绝 `.`/`..`/绝对路径/盘符路径。
-- `object_key` 与 `directory` 同时给出时以 `object_key` 为准。
 - 下载三选一：`download(file_id, ...)`（代理流式）、`download(file_id, ..., url=...)` 或
   `download_from_url(url, ...)`（预签名/永久链接）、原始 `httpx.stream`（与 SDK 等价）。
-- `download` / `download_from_url` 均逐块写盘，不整体缓冲；`progress(written, total)` 可选回调。
+- `download` / `download_from_url` 均逐块写盘、不整体缓冲，返回本地落盘 `Path`
+  （`Path.name` 即本地文件名）。
+- 文件名来源：服务端原始文件名在 `FileInfo.original_filename`（代理下载前可先
+  `get_file(file_id)`）；URL 场景用 `filename_from_url(url)`——API 下载 / 永久链接回查元数据，
+  预签名 URL 取路径末段，无法确定时返回 `None`。
 - 需要预签名 URL 时先调 `get_download_url(file_id, expires_seconds=...)`（或上传响应
   `download_url` / 永久链接 API），再交给 `url=` / `download_from_url` 下载，无需其它判断。
 
-### 超大文件多线程下载（HTTP Range）
+### 6.4 超大文件多线程下载（HTTP Range）
 
 `download()` / `download_from_url()` 支持 `concurrency=N`（默认 1）并行分片下载：
 
@@ -176,9 +235,9 @@ client.download_from_url(url, "/tmp/big.bin", concurrency=8)
 
 ## 7. 目录上传
 
-
 ```python
-job = client.upload_directory(
+# 通用入口：Client.upload 识别目录后自动调用 upload_directory
+job = client.upload(
     "./album-assets",
     bucket="app-default",
     destination_prefix="artists/10001/albums/2026",
@@ -191,6 +250,15 @@ job = client.upload_directory(
     lifecycle=FileLifecycle.ttl(timedelta(days=30)),
 )
 print(job.status, job.uploaded_files, job.failed_files, job.uploaded_bytes)
+
+# 精细控制时也可直接调用 upload_directory（参数同上，含 recursive/resume）
+job = client.upload_directory(
+    "./album-assets",
+    bucket="app-default",
+    destination_prefix="artists/10001/albums/2026",
+    recursive=True,
+    resume=True,
+)
 ```
 
 - `.uploadignore` 文件（gitignore 语法）在客户端本地过滤；`exclude` 优先级高于 `include`。
@@ -262,7 +330,9 @@ resp = httpx.post(f"{base}/v1/files/{info.id}/permanent-link", headers=headers)
 link = resp.json()["url"]                     # 永久链接（文件删除前一直有效）
 
 # 或直接用 SDK 的 URL 下载模式（流式写盘，支持 progress 回调）
-client.download_from_url(link, "/tmp/report.pdf")
+filename = client.filename_from_url(link)        # 永久链接 -> 自动回查元数据 original_filename
+print(filename)                                  # 原始文件名（无法确定时为 None）
+client.download_from_url(link, f"/tmp/{filename or 'download.bin'}")
 ```
 
 - 链接永不过期；文件删除后返回 404，token 错误返回 403。
