@@ -271,6 +271,16 @@ class UploadClient:
             file_fingerprint=fingerprint,
             lifecycle=lifecycle_payload,
         )
+        if session.upload_mode == "proxy":
+            # 服务端按 direct_upload_threshold 判定为单请求代理上传（未创建 S3
+            # multipart），此时不应走分片；回退到 upload_file 的代理单请求路径。
+            return self.upload_file(
+                file_path,
+                bucket=bucket,
+                object_key=object_key,
+                directory=directory,
+                lifecycle=lifecycle,
+            )
 
         local_state = self.state.load(session.id)
         if resume and local_state and local_state.fingerprint != fingerprint:
@@ -641,6 +651,30 @@ class Client(UploadClient):
             transport=transport,
         )
         self.large_file_threshold = large_file_threshold
+        self._server_threshold: int | None = None
+
+    def _resolve_threshold(self) -> int:
+        """Return the server-side direct upload threshold (bytes).
+
+        The server decides multipart vs single proxy upload from its own
+        direct_upload_threshold_bytes; mirror that decision so the client does
+        not attempt multipart for files the server will handle in proxy mode.
+        Falls back to the configured local threshold when the config cannot be
+        read (e.g. offline or older server).
+        """
+        if self._server_threshold is None:
+            try:
+                response = self._request("GET", "/v1/client-config")
+                self._raise_for_status(response)
+                self._server_threshold = (
+                    response.json()
+                    .get("uploads", {})
+                    .get("direct_upload_threshold_bytes")
+                    or self.large_file_threshold
+                )
+            except UploadClientError:
+                self._server_threshold = self.large_file_threshold
+        return self._server_threshold
 
     def upload(
         self,
@@ -687,7 +721,7 @@ class Client(UploadClient):
                 conflict_policy=conflict_policy,
                 lifecycle=lifecycle,
             )
-        if path.stat().st_size >= self.large_file_threshold:
+        if path.stat().st_size > self._resolve_threshold():
             return self.upload_large_file(
                 str(path),
                 bucket=bucket,
