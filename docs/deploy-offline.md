@@ -157,18 +157,158 @@ curl -fsS http://localhost:9001/minio/health/live && echo OK
 
 ## 8. 独立模式（复用已有 PG/Redis/MinIO）
 
-只传输 4 个应用镜像（`pyuploadx-upload-api` / `pyuploadx-worker` / `pyuploadx-portal` / `pyuploadx-migrate`），在服务器上用基础 compose 启动并指向外部服务：
+只部署 4 个应用镜像（`pyuploadx-upload-api` / `pyuploadx-worker` / `pyuploadx-portal` /
+`pyuploadx-migrate`），数据库 / Redis / 对象存储全部使用已有实例，不启动自带组件。
+
+### 8.1 前置条件与端口
+
+- 4 个应用镜像已在目标机 `docker load`（见 §4）；MinIO（S3 API 端口 / 控制台端口）与
+  PostgreSQL、Redis 已就绪。
+- 应用容器通过 `host.docker.internal` 访问宿主机服务（`--add-host host.docker.internal:host-gateway`）；
+  若 PG/Redis/MinIO 不在本机，将 `.env` 中的地址替换为实际可达地址。
+- 端口清单（冲突检查：`ss -ltnp | grep -E ':(8060|5173|19000|19001)\b'`）：
+
+| 端口 | 用途 | 说明 |
+| --- | --- | --- |
+| `8060` | API | 容器 8000 → 宿主 8060（`-p 8060:8000`，可改） |
+| `5173` | Portal | 容器 80 → 宿主 5173（`-p 5173:80`，可改） |
+| `19000` | MinIO S3 API | 应用存储端点（HAProxy 前置） |
+| `19001` | MinIO Console | 管理控制台 |
+| `5432` / `6379` | PostgreSQL / Redis | 通常仅内网/本机可达 |
+
+### 8.2 方式 A：有 compose 插件
 
 ```bash
 cd /opt/pyuploadx
-export UPLOAD_DATABASE_URL='postgresql+asyncpg://user:pass@<PG_HOST>:5432/dbname'
-export UPLOAD_REDIS_URL='redis://:password@<REDIS_HOST>:6379/0'
-export UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL='http://<S3_HOST>:9000'
-export UPLOAD_STORAGE__S3__PUBLIC_ENDPOINT_URL='http://<服务器IP>:9000'
-export S3_ACCESS_KEY=... S3_SECRET_KEY=...
+export UPLOAD_DATABASE_URL='postgresql+asyncpg://user:pass@host.docker.internal:5432/dbname'
+export UPLOAD_REDIS_URL='redis://:password@host.docker.internal:6379/0'
+export UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL='http://host.docker.internal:19000'
+export UPLOAD_STORAGE__S3__PUBLIC_ENDPOINT_URL='http://<服务器IP>:19000'
+export S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=...
 export PORTAL_API_TOKEN='...' UPLOAD_API_KEYS='["dev-key","..."]'
 docker compose -f docker-compose.yml up -d --no-build
 ```
+
+> 镜像必须已 `docker load`，否则 `--no-build` 会尝试从 registry 拉取并失败（本地镜像未推送）。
+
+### 8.3 方式 B：无 compose，手动 docker run（离线环境推荐）
+
+#### 1) 建网络（一次）
+
+```bash
+docker network create pyuploadx-net   # 只影响显式加入该网络的容器，不影响其它服务
+```
+
+#### 2) 环境变量文件 `.env`（`docker run --env-file` 不解析 `${}`，填具体值）
+
+```bash
+cat > .env <<'EOF'
+UPLOAD_API_KEYS=["dev-key","REPLACE_PORTAL_TOKEN"]
+UPLOAD_DATABASE_URL=postgresql+asyncpg://<用户>:<密码>@host.docker.internal:5432/<库名>
+UPLOAD_REDIS__ENABLED=true
+UPLOAD_REDIS_URL=redis://:<密码>@host.docker.internal:6379/0
+UPLOAD_CLUSTER__ENABLED=false
+UPLOAD_LOG_CENTER__ENABLED=false
+UPLOAD_LOG_CENTER__URL=http://host.docker.internal:9315
+LOG_CENTER_TOKEN=
+UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL=http://host.docker.internal:19000
+UPLOAD_STORAGE__S3__PUBLIC_ENDPOINT_URL=http://<服务器IP>:19000
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=<MinIO 密码>
+EOF
+```
+
+> `REPLACE_PORTAL_TOKEN` 必须与 portal 容器的 `PORTAL_API_TOKEN` 一致：portal 的 nginx 会把它作为
+> `X-API-Key` 注入 `/v1/` 请求，API 侧通过 `UPLOAD_API_KEYS` 校验。
+
+#### 3) MinIO 建桶引导（全新实例才需要）
+
+```bash
+docker run --rm --add-host host.docker.internal:host-gateway \
+  --entrypoint /bin/sh minio/mc:latest -c '
+  mc alias set local http://host.docker.internal:19000 minioadmin <MinIO 密码> >/dev/null &&
+  mc mb --ignore-existing local/app-default &&
+  mc mb --ignore-existing local/public-assets &&
+  mc anonymous set download local/public-assets >/dev/null &&
+  mc ls local'
+```
+
+#### 4) 数据库迁移（等待成功退出 0）
+
+```bash
+docker run --rm --name pyuploadx-migrate \
+  --network pyuploadx-net \
+  --add-host host.docker.internal:host-gateway \
+  --env-file .env \
+  pyuploadx-migrate:latest alembic upgrade head
+```
+
+#### 5) API 与 Worker
+
+```bash
+docker run -d --name pyuploadx-upload-api --restart unless-stopped \
+  --network pyuploadx-net --network-alias upload-api \
+  --add-host host.docker.internal:host-gateway \
+  --env-file .env \
+  -p 8060:8000 \
+  pyuploadx-upload-api:latest
+
+docker run -d --name pyuploadx-worker --restart unless-stopped \
+  --network pyuploadx-net \
+  --add-host host.docker.internal:host-gateway \
+  --env-file .env \
+  pyuploadx-worker:latest
+```
+
+> `--network-alias upload-api` 必须有：portal 的 nginx 固定请求 `http://upload-api:8000`。
+
+#### 6) Portal
+
+```bash
+docker run -d --name pyuploadx-portal --restart unless-stopped \
+  --network pyuploadx-net \
+  -e PORTAL_API_TOKEN=REPLACE_PORTAL_TOKEN \
+  -p 5173:80 \
+  pyuploadx-portal:latest
+```
+
+#### 7) 验证与访问
+
+```bash
+docker ps --format '{{.Names}}\t{{.Status}}'
+curl -fsS http://localhost:8060/healthz && echo OK
+curl -fsS -o /dev/null -w 'portal:%{http_code}\n' http://localhost:5173/
+```
+
+- API / OpenAPI：`http://<服务器IP>:8060/docs`
+- Portal：`http://<服务器IP>:5173`（自动登录）
+- MinIO Console：`http://<服务器IP>:19001`
+
+#### 8) 运维
+
+```bash
+# 停止 / 启动 / 重启
+docker stop pyuploadx-upload-api pyuploadx-worker pyuploadx-portal
+docker start pyuploadx-upload-api pyuploadx-worker pyuploadx-portal
+docker restart pyuploadx-upload-api pyuploadx-worker pyuploadx-portal
+
+# 升级：docker load 新镜像后依次重建（migrate 会自动执行增量迁移）
+docker rm -f pyuploadx-upload-api pyuploadx-worker pyuploadx-portal
+# 先跑迁移（等待退出码 0，命令同第 4 步）
+docker run --rm --name pyuploadx-migrate \
+  --network pyuploadx-net \
+  --add-host host.docker.internal:host-gateway \
+  --env-file .env \
+  pyuploadx-migrate:latest alembic upgrade head
+# 再按第 5、6 步重新 run
+
+# 清理（不影响数据）
+docker rm -f pyuploadx-upload-api pyuploadx-worker pyuploadx-portal
+docker network rm pyuploadx-net
+```
+
+- 数据均在外部（PG/Redis/MinIO 卷或宿主目录），删除容器不丢数据；
+  MinIO 备份见第 9 节。
 
 ## 9. 常用运维
 
