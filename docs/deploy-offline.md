@@ -218,6 +218,15 @@ S3_SECRET_KEY=<MinIO 密码>
 EOF
 ```
 
+> **PG / Redis 不在宿主机、而在局域网其它主机时**：仅需把 `.env` 中
+> `UPLOAD_DATABASE_URL` 的 `host.docker.internal:5432` 与 `UPLOAD_REDIS_URL` 的
+> `host.docker.internal:6379` 换成对方主机 IP，例如
+> `postgresql+asyncpg://upload:pass@192.168.1.20:5432/uploads`、
+> `redis://:pass@192.168.1.21:6379/0`；其余配置不变（MinIO 仍在宿主机时，S3 端点保持
+> `http://host.docker.internal:19000`，`--add-host` 参数保留即可）。
+> 前提：PG/Redis 监听局域网地址（PG `listen_addresses` 含该网段、`pg_hba.conf` 放行应用宿主 IP；
+> Redis `bind` 含该网段或 `0.0.0.0` 并设 `requirepass`），且对方防火墙允许应用宿主访问。
+
 > `REPLACE_PORTAL_TOKEN` 必须与 portal 容器的 `PORTAL_API_TOKEN` 一致：portal 的 nginx 会把它作为
 > `X-API-Key` 注入 `/v1/` 请求，API 侧通过 `UPLOAD_API_KEYS` 校验。
 
