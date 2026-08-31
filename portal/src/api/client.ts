@@ -147,12 +147,20 @@ export function hasApiToken(): boolean {
   return apiToken !== null && apiToken !== "";
 }
 
+function newRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // 非安全上下文（局域网明文 HTTP）下 crypto.randomUUID 不可用，退化为随机串。
+  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (apiToken) {
     headers.set("X-API-Key", apiToken);
   }
-  headers.set("X-Request-ID", crypto.randomUUID());
+  headers.set("X-Request-ID", newRequestId());
   const response = await fetch(path, { ...init, headers });
   if (response.status === 401) {
     throw new Error("AUTHENTICATION_REQUIRED");
@@ -414,7 +422,7 @@ export async function downloadFile(fileId: string): Promise<Blob> {
   if (apiToken) {
     headers.set("X-API-Key", apiToken);
   }
-  headers.set("X-Request-ID", crypto.randomUUID());
+  headers.set("X-Request-ID", newRequestId());
   const response = await fetch(downloadUrl(fileId), { headers });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
