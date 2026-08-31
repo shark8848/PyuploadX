@@ -189,6 +189,16 @@ docker compose -f deploy/cluster/compose.yaml up -d --no-build --scale upload-ap
 （S3 `127.0.0.1:19000` / 控制台 `127.0.0.1:19001`），外部仅通过容器内 HAProxy
 暴露 `9000`（S3 API）与 `9001`（控制台），屏蔽 MinIO 服务端直连面。
 
+本机构建（脚本基于本地缓存的基础镜像离线构建，无需访问外网）：
+
+```bash
+bash deploy/minio/build.sh                          # 构建 pyuploadx/minio-haproxy:latest
+
+# 可选参数：
+MINIO_IMAGE_TAG=registry.example.com/pyuploadx/minio-haproxy:latest bash deploy/minio/build.sh
+MINIO_BASE_IMAGE=minio/minio:RELEASE.2025-09-07T16-13-09Z bash deploy/minio/build.sh   # 指定 MinIO 基础版本
+```
+
 本机导出：
 
 ```bash
