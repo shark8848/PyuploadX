@@ -207,12 +207,16 @@ job = client.upload_directory(
 )
 ```
 
+通用客户端：`pyuploadx.Client` 是 `UploadClient` 的扩展（上传 + 下载通用，不修改原类），
+新增 `client.upload(path, bucket=...)` 自动按路径选择小文件 / 大文件 / 目录上传策略，
+`UploadClient` 的全部方法与参数保持不变。
+
 ### 安装
 
 ```bash
 pip install pyuploadx          # 官方 PyPI：Python SDK（Python ≥ 3.11，第三方依赖仅 httpx）
 pip install pyuploadx-server   # 官方 PyPI：服务端（FastAPI，Docker 部署时通常无需 pip 安装）
-pip install dist/pyuploadx-0.7.0-py3-none-any.whl   # 或仓库直装（历史版本清单见 dist/README.md）
+pip install dist/pyuploadx-0.10.0-py3-none-any.whl  # 或仓库直装（历史版本清单见 dist/README.md）
 ```
 
 SDK 与服务端为两个独立发布包（`pyuploadx` / `pyuploadx-server`）；发版与版本管理见

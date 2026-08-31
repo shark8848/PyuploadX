@@ -8,7 +8,7 @@
 
 ```bash
 pip install pyuploadx          # 官方 PyPI（Python ≥ 3.11，第三方依赖仅 httpx）
-pip install dist/pyuploadx-0.8.0-py3-none-any.whl   # 或仓库直装（历史版本清单见 dist/README.md）
+pip install dist/pyuploadx-0.10.0-py3-none-any.whl  # 或仓库直装（历史版本清单见 dist/README.md）
 ```
 
 ## 2. 客户端初始化
@@ -34,11 +34,18 @@ client.on_progress(lambda uploaded, total: print(f"{uploaded}/{total}"))  # 上�
 - `transport` 参数可注入自定义 `httpx.BaseTransport`（测试用内存 ASGI 传输）。
 - 客户端是线程安全的会话封装；`close()` 释放连接池。
 
+> 通用客户端：`Client` 是 `UploadClient` 的通用扩展（上传 + 下载，不修改原类），
+> `UploadClient` 的全部方法保持不变，并额外提供 `upload()` 自动按路径选择策略：
+> 目录 → `upload_directory`；文件 ≥ `large_file_threshold`（默认 8 MiB）→
+> `upload_large_file`；否则 → `upload_file`。新代码推荐使用 `Client`：
+> `from pyuploadx import Client`，初始化参数与 `UploadClient` 完全一致。
+
 ## 3. 方法参考
 
 | 方法 | 返回 | 说明 |
 | --- | --- | --- |
 | `upload_file(path, *, bucket, object_key=None, directory=None, lifecycle=None, metadata=None)` | `FileInfo` | 小文件 Proxy 上传（`directory` 自动拼目录） |
+| `upload(source, *, bucket, object_key=None, directory=None, destination_prefix="", lifecycle=None, metadata=None, part_size=8MiB, concurrency=4, resume=True, file_concurrency=8, part_concurrency=4, include=None, exclude=None, symlink_policy="ignore", conflict_policy="reject")` | `FileInfo \| DirectoryJobInfo` | 通用上传：目录/大文件/小文件自动选择策略（`Client` 提供） |
 | `upload_large_file(path, *, bucket, object_key=None, directory=None, part_size=8MiB, concurrency=4, resume=True, lifecycle=None)` | `FileInfo` | 大文件 Multipart + 断点续传（`directory` 自动拼目录） |
 | `create_upload(*, bucket, object_key, total_size, part_size, file_fingerprint=None, expected_sha256=None, lifecycle=None)` | `UploadSessionInfo` | 手动创建分片会话 |
 | `upload_directory(path, *, bucket, destination_prefix="", recursive=True, resume=True, file_concurrency=8, part_concurrency=4, include=None, exclude=None, symlink_policy="ignore", conflict_policy="reject", lifecycle=None)` | `DirectoryJobInfo` | 目录上传 |
@@ -49,6 +56,7 @@ client.on_progress(lambda uploaded, total: print(f"{uploaded}/{total}"))  # 上�
 | `get_download_url(file_id, expires_seconds=None)` | `str \| None` | 预签名下载 URL（Local 后端为 `None`） |
 | `download(file_id, destination, *, url=None, progress=None, concurrency=1)` | `Path` | 下载到本地：默认代理流式下载；传入 `url=` 直接下载 URL；`concurrency>1` 并发 Range 分片（不支持时自动回退单流） |
 | `download_from_url(url, destination, *, progress=None, concurrency=1)` | `Path` | 直接流式下载任意 HTTP(S) URL（预签名/永久链接），支持并发分片 |
+| `filename_from_url(url)` | `str \| None` | 从下载 URL 解析原始文件名（`Client` 提供）：API 下载/永久链接回查元数据 `original_filename`；预签名 URL 取路径末段（URL 解码）；无法确定返回 `None` |
 | `delete(file_id)` | `None` | 删除（幂等） |
 | `get_lifecycle(file_id)` | `dict` | 生效生命周期 |
 | `update_lifecycle(file_id, lifecycle)` | `dict` | 更新生命周期 |

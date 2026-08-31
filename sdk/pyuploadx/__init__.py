@@ -1,6 +1,6 @@
 """PyUploadX Python client SDK per docs_product-design.md section 17."""
 
-from pyuploadx.client import UploadClient
+from pyuploadx.client import Client, UploadClient
 from pyuploadx.exceptions import (
     AuthenticationError,
     AuthorizationError,
@@ -17,9 +17,10 @@ from pyuploadx.exceptions import (
 )
 from pyuploadx.lifecycle import FileLifecycle
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 __all__ = [
+    "Client",
     "UploadClient",
     "FileLifecycle",
     "UploadClientError",

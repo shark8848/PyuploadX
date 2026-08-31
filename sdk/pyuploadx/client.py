@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import threading
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 import httpx
 
@@ -603,3 +605,126 @@ class UploadClient:
 
     def __exit__(self, *args: object) -> None:
         self.close()
+
+
+class Client(UploadClient):
+    """Generic PyUploadX client covering both upload and download.
+
+    Extends UploadClient without modifying it: every UploadClient method
+    (upload_file, upload_large_file, upload_directory, download,
+    download_from_url, delete, list_files, lifecycle management, ...) remains
+    available, and Client adds a neutral upload() entry point that selects the
+    transfer strategy from the source path:
+
+    - directory              -> upload_directory
+    - file >= large_file_threshold -> upload_large_file
+    - otherwise              -> upload_file
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        bearer_token: str | None = None,
+        api_key: str | None = None,
+        state_dir: str = "~/.pyuploadx/uploads",
+        timeout: float = 60.0,
+        transport: httpx.BaseTransport | None = None,
+        large_file_threshold: int = 8 * 1024 * 1024,
+    ) -> None:
+        super().__init__(
+            base_url,
+            bearer_token=bearer_token,
+            api_key=api_key,
+            state_dir=state_dir,
+            timeout=timeout,
+            transport=transport,
+        )
+        self.large_file_threshold = large_file_threshold
+
+    def upload(
+        self,
+        source: str,
+        *,
+        bucket: str,
+        object_key: str | None = None,
+        directory: str | None = None,
+        destination_prefix: str = "",
+        lifecycle: Any = None,
+        metadata: dict[str, Any] | None = None,
+        part_size: int = 8 * 1024 * 1024,
+        concurrency: int = 4,
+        resume: bool = True,
+        file_concurrency: int = 8,
+        part_concurrency: int = 4,
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
+        symlink_policy: str = "ignore",
+        conflict_policy: str = "reject",
+    ) -> FileInfo | DirectoryJobInfo:
+        """Upload any local path, selecting the transfer strategy automatically.
+
+        Directories are uploaded with upload_directory, files at or above
+        large_file_threshold with upload_large_file, and smaller files with
+        upload_file. Returns FileInfo for files and DirectoryJobInfo for
+        directories.
+        """
+        path = Path(source).expanduser()
+        if not path.exists():
+            raise UploadClientError(f"source not found: {path}")
+        if path.is_dir():
+            return self.upload_directory(
+                str(path),
+                bucket=bucket,
+                destination_prefix=destination_prefix,
+                recursive=True,
+                resume=resume,
+                file_concurrency=file_concurrency,
+                part_concurrency=part_concurrency,
+                include=include,
+                exclude=exclude,
+                symlink_policy=symlink_policy,
+                conflict_policy=conflict_policy,
+                lifecycle=lifecycle,
+            )
+        if path.stat().st_size >= self.large_file_threshold:
+            return self.upload_large_file(
+                str(path),
+                bucket=bucket,
+                object_key=object_key,
+                directory=directory,
+                part_size=part_size,
+                concurrency=concurrency,
+                resume=resume,
+                lifecycle=lifecycle,
+            )
+        return self.upload_file(
+            str(path),
+            bucket=bucket,
+            object_key=object_key,
+            directory=directory,
+            lifecycle=lifecycle,
+            metadata=metadata,
+        )
+
+    def filename_from_url(self, url: str) -> str | None:
+        """Resolve the original filename from a download URL.
+
+        API download links (`/v1/files/{file_id}/download` and permanent
+        `/v1/files/{file_id}/download-link` URLs) resolve the file metadata and
+        return original_filename (falling back to the object key basename).
+        Presigned storage URLs carry the object key in the path, so the
+        URL-decoded basename is returned. Returns None when the URL has no
+        usable filename.
+        """
+        path = unquote(urlparse(url).path)
+        if path.endswith("/"):
+            return None
+        match = re.search(r"/v1/files/([0-9a-fA-F-]{36})/(?:download|download-link)", path)
+        if match:
+            info = self.get_file(match.group(1))
+            return info.original_filename or Path(info.object_key).name
+        return Path(path).name or None
+
+    def __enter__(self) -> Client:
+        return self

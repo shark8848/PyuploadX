@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import httpx
-from pyuploadx.exceptions import ValidationError
+from pyuploadx.exceptions import UploadClientError, ValidationError
 
 
 class SyncASGITransport(httpx.BaseTransport):
@@ -183,3 +183,120 @@ def test_sdk_directory_upload(app, auth_headers, tmp_path):
         assert fetched_job.id == job.id
         assert fetched_job.status == "completed"
         assert fetched_job.uploaded_files == 2
+
+
+def _make_generic_client(app, auth_headers, **kwargs):
+    from pyuploadx import Client
+
+    return Client(
+        base_url="http://testserver",
+        api_key=auth_headers["X-API-Key"],
+        state_dir="/tmp/pyuploadx-sdk-state",
+        transport=SyncASGITransport(app),
+        **kwargs,
+    )
+
+
+def test_generic_client_upload_dispatch(app, auth_headers, tmp_path):
+    from pyuploadx import Client
+
+    small = tmp_path / "small.txt"
+    small.write_bytes(b"x" * 100)
+    large = tmp_path / "large.bin"
+    large.write_bytes(b"y" * (8 * 1024 * 1024 + 1))
+    missing = tmp_path / "missing.txt"
+    with _make_generic_client(app, auth_headers) as client:
+        assert isinstance(client, Client)
+        small_info = client.upload(str(small), bucket="app-default")
+        assert small_info.size_bytes == 100
+        large_info = client.upload(
+            str(large),
+            bucket="app-default",
+            object_key="large.bin",
+            part_size=8 * 1024 * 1024,
+        )
+        assert large_info.size_bytes == 8 * 1024 * 1024 + 1
+        assert large_info.object_key == "large.bin"
+        dest = tmp_path / "roundtrip.bin"
+        assert client.download(large_info.id, str(dest)) == dest
+        assert dest.read_bytes() == large.read_bytes()
+        try:
+            client.upload(str(missing), bucket="app-default")
+            raise AssertionError("expected UploadClientError")
+        except UploadClientError:
+            pass
+
+
+def test_generic_client_upload_directory_dispatch(app, auth_headers, tmp_path):
+    root = tmp_path / "album"
+    (root / "images").mkdir(parents=True)
+    (root / "images" / "cover.jpg").write_bytes(b"jpeg-data")
+    (root / "README.md").write_text("# album")
+    with _make_generic_client(app, auth_headers) as client:
+        job = client.upload(str(root), bucket="app-default", destination_prefix="artists/2")
+        assert job.status == "completed"
+        assert job.total_files == 2
+        assert job.uploaded_files == 2
+
+
+def test_generic_client_filename_from_url_api_links(auth_headers):
+    from pyuploadx import Client
+
+    file_id = "11111111-2222-3333-4444-555555555555"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == f"/v1/files/{file_id}"
+        return httpx.Response(
+            200,
+            json={
+                "id": file_id,
+                "bucket": "app-default",
+                "object_key": "reports/2026/report.pdf",
+                "original_filename": "report.pdf",
+                "size_bytes": 10,
+                "status": "active",
+                "download_url": None,
+                "expires_in": None,
+            },
+        )
+
+    client = Client(
+        base_url="http://testserver",
+        api_key=auth_headers["X-API-Key"],
+        state_dir="/tmp/pyuploadx-sdk-state",
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        assert (
+            client.filename_from_url(f"http://testserver/v1/files/{file_id}/download")
+            == "report.pdf"
+        )
+        assert (
+            client.filename_from_url(
+                f"http://testserver/v1/files/{file_id}/download-link?token=abc"
+            )
+            == "report.pdf"
+        )
+    finally:
+        client.close()
+
+
+def test_generic_client_filename_from_url_presigned(auth_headers):
+    from pyuploadx import Client
+
+    client = Client(
+        base_url="http://testserver",
+        api_key=auth_headers["X-API-Key"],
+        state_dir="/tmp/pyuploadx-sdk-state",
+    )
+    try:
+        url = (
+            "http://localhost:9000/app-default/reports/2026/"
+            "report%20v2.pdf?X-Amz-Signature=abc&X-Amz-Expires=3600"
+        )
+        assert client.filename_from_url(url) == "report v2.pdf"
+        assert client.filename_from_url("http://localhost:9000/app-default/") is None
+        assert client.filename_from_url("http://localhost:9000/") is None
+    finally:
+        client.close()

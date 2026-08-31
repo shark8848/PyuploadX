@@ -1538,6 +1538,11 @@ result = client.upload_file(
 )
 ```
 
+> 通用客户端：`Client` 是 `UploadClient` 的通用扩展（上传 + 下载，不修改原类），
+> 全部 `UploadClient` 方法保持不变，并额外提供 `upload()`（目录 / 大文件 / 小文件自动
+> 选择策略）与 `filename_from_url()`（从下载 URL 解析原始文件名）。
+> `from pyuploadx import Client`，初始化参数与 `UploadClient` 完全一致。
+
 ## 17.2 大文件
 
 ```python
