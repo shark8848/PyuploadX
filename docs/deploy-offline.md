@@ -25,6 +25,19 @@
 
 ## 2. 本机导出
 
+### 2.0 一键构建全部镜像（可选）
+
+项目镜像（`pyuploadx-upload-api` / `pyuploadx-worker` / `pyuploadx-portal` /
+`pyuploadx-migrate` / 加固 MinIO `pyuploadx/minio-haproxy`）可一键构建：
+
+```bash
+bash scripts/build-images.sh            # 构建全部项目镜像（api/worker/portal/minio-haproxy）
+bash scripts/build-images.sh --export   # 构建并 docker save 导出到 docker/images/
+```
+
+> 第三方基础镜像（`postgres:16-alpine`、`redis:7-alpine`、`minio/mc:latest`）不随脚本构建，
+> 离线发布时需另行 `docker pull` 后按下方命令 `docker save`。
+
 ### 2.1 单文件打包（推荐，最省事）
 
 ```bash
