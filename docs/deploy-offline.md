@@ -8,14 +8,15 @@
 | --- | --- | --- | --- |
 | `pyuploadx-upload-api:latest` | ~358 MB | `Dockerfile` target `api` | 上传/文件/目录 API |
 | `pyuploadx-worker:latest` | ~358 MB | `Dockerfile` target `worker` | 生命周期/清理后台任务 |
-| `pyuploadx-portal:latest` | ~75 MB | `portal/Dockerfile` | Portal 前端（nginx） |
+| `pyuploadx-portal:latest` | ~110 MB | `portal/Dockerfile` | Portal 前端（OpenResty） |
+| `pyuploadx-gateway:latest` | ~110 MB | `deploy/nginx/Dockerfile` | 生产网关（OpenResty，TLS 终止 + 反代；可选） |
 | `pyuploadx-migrate:latest` | ~358 MB | `Dockerfile` target `api` | 一次性迁移（与 upload-api 同构建，仅入口为 `alembic upgrade head`） |
 | `postgres:16-alpine` | ~420 MB | Docker Hub | 自带 PostgreSQL |
 | `redis:7-alpine` | ~58 MB | Docker Hub | 自带 Redis |
 | `minio/minio:latest` | ~241 MB | Docker Hub | 自带对象存储（compose 模式；数据外部卷挂载） |
 | `minio/mc:latest` | ~117 MB | Docker Hub | 建桶初始化 |
 
-合计约 **1.9 GB**（含压缩后更小）。`pyuploadx-migrate` 与 `pyuploadx-upload-api` 是同一构建产物，传输其一即可用 `docker tag` 补齐，但建议按清单全传，保证 `up -d` 直接命中。
+合计约 **2.1 GB**（含压缩后更小）。`pyuploadx-migrate` 与 `pyuploadx-upload-api` 是同一构建产物，传输其一即可用 `docker tag` 补齐，但建议按清单全传，保证 `up -d` 直接命中。
 
 > **数据一律外部挂载，不进镜像**：镜像只包含程序，不包含任何业务数据。
 > - PostgreSQL / MinIO 数据存放在 compose 命名卷（`pyuploadx_postgres-data` /
@@ -28,10 +29,10 @@
 ### 2.0 一键构建全部镜像（可选）
 
 项目镜像（`pyuploadx-upload-api` / `pyuploadx-worker` / `pyuploadx-portal` /
-`pyuploadx-migrate` / 加固 MinIO `pyuploadx/minio-haproxy`）可一键构建：
+`pyuploadx-gateway` / `pyuploadx-migrate` / 加固 MinIO `pyuploadx/minio-haproxy`）可一键构建：
 
 ```bash
-bash scripts/build-images.sh            # 构建全部项目镜像（api/worker/portal/minio-haproxy）
+bash scripts/build-images.sh            # 构建全部项目镜像（api/worker/portal/gateway/migrate/minio-haproxy）
 bash scripts/build-images.sh --export   # 构建并 docker save 导出到 docker/images/
 ```
 
@@ -45,8 +46,12 @@ cd /home/sharkyai/PyUploadX
 mkdir -p dist/offline
 docker save -o dist/offline/pyuploadx-offline.tar \
   pyuploadx-upload-api:latest pyuploadx-worker:latest pyuploadx-portal:latest pyuploadx-migrate:latest \
+  pyuploadx-gateway:latest \
   postgres:16-alpine redis:7-alpine minio/minio:latest minio/mc:latest
 ```
+
+> `pyuploadx-gateway:latest` 为可选的生产 HTTPS 网关（OpenResty，见 §12）；不需要
+> HTTPS 网关时可从导出列表移除，不影响 compose 模式启动。
 
 ### 2.2 逐个导出（便于分批/断点传输）
 
@@ -55,6 +60,7 @@ cd /home/sharkyai/PyUploadX
 mkdir -p dist/offline
 for img in \
   pyuploadx-upload-api:latest pyuploadx-worker:latest pyuploadx-portal:latest pyuploadx-migrate:latest \
+  pyuploadx-gateway:latest \
   postgres:16-alpine redis:7-alpine minio/minio:latest minio/mc:latest; do
   name=$(echo "$img" | tr '/:' '__')
   docker save -o "dist/offline/${name}.tar" "$img"
@@ -69,8 +75,12 @@ tar czf dist/offline/pyuploadx-compose.tgz \
   docker-compose.yml \
   deploy/single-node/compose.yaml \
   deploy/infra/compose.yaml \
+  deploy/nginx/ \
   README.md
 ```
+
+> `deploy/nginx/` 含生产网关的 `Dockerfile` 与 `gateway.conf`（配置来源，供参考或自建）；
+> 离线目标机按镜像部署（`docker load`）即可，无需构建。
 
 ## 3. 传输到目标服务器
 
@@ -105,7 +115,7 @@ cd /opt/pyuploadx
 # 先生成 token（也可手动指定固定值）
 TOKEN=$(openssl rand -hex 16)
 cat > .env <<'EOF'
-# Portal 自动登录 token（nginx 注入 X-API-Key；必须同时出现在 UPLOAD_API_KEYS 中）
+# Portal 自动登录 token（OpenResty 注入 X-API-Key；必须同时出现在 UPLOAD_API_KEYS 中）
 PORTAL_API_TOKEN=REPLACE_WITH_TOKEN
 # 后端校验的 API Key（含 portal token；可追加其它 key，如 "dev-key"）
 UPLOAD_API_KEYS=["dev-key","REPLACE_WITH_TOKEN"]
@@ -152,8 +162,10 @@ curl -fsS http://localhost:9001/minio/health/live && echo OK
 - Portal：`http://<服务器IP>:5173`（自动登录）
 - API / OpenAPI：`http://<服务器IP>:8000/docs`
 - MinIO Console：`http://<服务器IP>:9001`（`minioadmin` / `minioadmin`）
+- 生产网关（可选，见 §12）：`https://<域名>/`（TLS 终止 + HTTP→HTTPS 跳转）
 
 防火墙需放行：`5173`、`8000`、`9000`、`9001`（PostgreSQL `5432`、Redis `6379` 仅本机/内网需要）。
+部署生产网关后放行 `80`、`443` 即可，`5173`/`8000` 建议收回内网（避免绕过网关直连）。
 
 ## 8. 独立模式（复用已有 PG/Redis/MinIO）
 
@@ -174,6 +186,7 @@ curl -fsS http://localhost:9001/minio/health/live && echo OK
 | `5173` | Portal | 容器 80 → 宿主 5173（`-p 5173:80`，可改） |
 | `19000` | MinIO S3 API | 应用存储端点（HAProxy 前置） |
 | `19001` | MinIO Console | 管理控制台 |
+| `80` / `443` | 生产网关（可选） | TLS 终止 + HTTP→HTTPS，见 §12 |
 | `5432` / `6379` | PostgreSQL / Redis | 通常仅内网/本机可达 |
 
 ### 8.2 方式 A：有 compose 插件
@@ -271,14 +284,14 @@ docker run -d --name pyuploadx-worker --restart unless-stopped \
   pyuploadx-worker:latest
 ```
 
-> `--network-alias upload-api` 必须有：portal 的 nginx 固定请求 `http://upload-api:8000`。
+> `--network-alias upload-api` 必须有：portal 的 OpenResty 固定请求 `http://upload-api:8000`。
 
 #### 6) Portal
 
 ```bash
 # 示例 token：1qaz2wsx3edc（换成你自己的，必须与 .env 中 UPLOAD_API_KEYS 里的值一致）
 docker run -d --name pyuploadx-portal --restart unless-stopped \
-  --network pyuploadx-net \
+  --network pyuploadx-net --network-alias portal \
   -e PORTAL_API_TOKEN=1qaz2wsx3edc \
   -p 5173:80 \
   pyuploadx-portal:latest
@@ -286,7 +299,8 @@ docker run -d --name pyuploadx-portal --restart unless-stopped \
 
 > 不要照抄示例 token：换成与 `.env` 中 `UPLOAD_API_KEYS` 一致的值，且 `PORTAL_API_TOKEN`
 > 必须用 `-e` 显式传入（portal 容器不读 `.env`）。若浏览器登录页曾手动输入过其它 key
-> （localStorage 键名 `portal-token`），客户端 key 会覆盖 nginx 注入值，清除后重试。
+> （localStorage 键名 `portal-token`），客户端 key 会覆盖 OpenResty 注入值，清除后重试。
+> `--network-alias portal` 供生产网关（§12）反代解析；不部署网关时也可省略。
 
 #### 7) 验证与访问
 
@@ -322,7 +336,7 @@ docker run --rm --name pyuploadx-migrate \
 docker load -i pyuploadx-portal_latest.tar
 docker rm -f pyuploadx-portal
 docker run -d --name pyuploadx-portal --restart unless-stopped \
-  --network pyuploadx-net \
+  --network pyuploadx-net --network-alias portal \
   -e PORTAL_API_TOKEN=1qaz2wsx3edc \
   -p 5173:80 \
   pyuploadx-portal:latest
@@ -407,3 +421,88 @@ docker run -d --name pyuploadx-minio --restart unless-stopped \
 - `/data` 为 MinIO 数据目录，必须由宿主目录或命名卷提供；容器重建 / 升级后数据保留。
 - 首次部署建桶（`app-default` / `public-assets`）用 `minio/mc` 执行 `deploy/minio/bootstrap.sh`。
 - 备份/恢复直接针对挂载的宿主目录或卷（见第 9 节）。
+
+## 12. 生产网关（可选，OpenResty HTTPS）
+
+`pyuploadx-gateway:latest`（`deploy/nginx/Dockerfile`，OpenResty 1.31）对外只暴露
+`80`/`443`：TLS 终止、HTTP→HTTPS 跳转，并把请求反代到 `portal:80`（页面）与
+`upload-api:8000`（`/v1/`、`/healthz`）。网关内置安全加固（见 §13），无需手工配置；
+配置来源为 `deploy/nginx/gateway.conf`，调整 `server_name` / 证书路径后需重新构建镜像。
+
+### 12.1 准备证书
+
+```bash
+mkdir -p /etc/pyuploadx/certs
+# 放置 TLS 证书与私钥（certbot / 自签均可），文件名固定为 tls.crt / tls.key
+scp tls.crt tls.key root@SERVER:/etc/pyuploadx/certs/
+```
+
+> 网关镜像固定读取 `/etc/nginx/certs/tls.crt` 与 `tls.key`（对应
+> `gateway.conf` 中的 `ssl_certificate` 路径）；改名需改配置后重建镜像。
+
+### 12.2 compose 模式部署（第 6 节启动之后）
+
+```bash
+cd /opt/pyuploadx
+docker run -d --name pyuploadx-gateway --restart unless-stopped \
+  --network pyuploadx_default \
+  -v /etc/pyuploadx/certs:/etc/nginx/certs:ro \
+  -p 80:80 -p 443:443 \
+  pyuploadx-gateway:latest
+```
+
+> 默认网络名为 `pyuploadx_default`（`deploy/single-node/compose.yaml` 声明
+> `name: pyuploadx`）；同网络内 `portal`、`upload-api` 是 compose 服务名，网关可直接解析。
+
+### 12.3 独立模式部署（第 8 节之后）
+
+手动 `docker run` 的 `portal` 需带 `--network-alias portal`（见 §8.3 第 6 步），再启动网关：
+
+```bash
+docker run -d --name pyuploadx-gateway --restart unless-stopped \
+  --network pyuploadx-net \
+  -v /etc/pyuploadx/certs:/etc/nginx/certs:ro \
+  -p 80:80 -p 443:443 \
+  pyuploadx-gateway:latest
+```
+
+### 12.4 验证与日常运维
+
+```bash
+curl -sI http://localhost/                                   # 301 → https://$host/（Location 不带端口）
+curl -skI https://localhost/                                 # TLS 正常；Server: openresty（无版本号）
+curl -sk -o /dev/null -w '%{http_code}\n' \
+  -H "X-API-Key: <实际 key>" https://localhost/v1/files?limit=1   # 200 = 网关→API 链路通
+
+# 升级 / 重启：docker load 新镜像后重建（证书目录 -v 挂载不受影响）
+docker rm -f pyuploadx-gateway
+# 重新执行 12.2 / 12.3 的 docker run
+```
+
+- 域名解析到本机后，浏览器访问 `https://<域名>/` 即 Portal（自动登录）；
+  网关 `server_name` 为 `upload.example.com`，可忽略（nginx 默认 server 兜底）或用实际域名重建镜像。
+- 放行防火墙 `80`/`443`；`5173`/`8000` 建议收回内网。
+- 客户端上传大文件：网关超时为空闲超时（见 §13），不影响长时间/断点续传。
+
+## 13. 安全加固（内置，部署即生效）
+
+Portal 与生产网关镜像已内置以下加固，无需手工配置：
+
+- **隐藏版本与监听端口**：`server_tokens off` / `port_in_redirect off` /
+  `absolute_redirect off`——`Server` 头不暴露版本号，重定向与错误响应不泄露内部端口。
+- **安全响应头**：`X-Content-Type-Options: nosniff`（防 MIME 嗅探）、
+  `X-Frame-Options: SAMEORIGIN`（防点击劫持）、
+  `Referrer-Policy: strict-origin-when-cross-origin`（限制 Referrer 泄露）。
+- **大文件兼容超时**：`proxy_connect_timeout 75s`，`proxy_read_timeout` /
+  `proxy_send_timeout` / `client_body_timeout` 均 300s——均为空闲超时而非总时长，
+  大文件持续传输不断连，慢速 / 暂停上传在 300s 内恢复不中断。
+- **隐藏文件防护**（portal）：拒绝 `/.` 开头路径段（`.env` / `.git` 等），返回 403。
+
+验证命令：
+
+```bash
+curl -sI http://<服务器IP>:5173/ | grep -iE '^(server|x-content-type|x-frame|referrer-policy)'
+# 期望：Server: openresty（无版本号）+ 三个安全头
+curl -s -o /dev/null -w '%{http_code}\n' http://<服务器IP>:5173/.env   # 期望 403
+curl -sI http://localhost/ 2>/dev/null | grep -i location               # 网关 301，Location 无端口
+```

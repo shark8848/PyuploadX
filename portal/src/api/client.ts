@@ -127,7 +127,7 @@ export function setApiToken(token: string | null): void {
 
 /**
  * Probes whether the current browser context is already authenticated
- * (e.g. the portal nginx injects a valid X-API-Key). A 401 means the app
+ * (e.g. the portal OpenResty injects a valid X-API-Key). A 401 means the app
  * should show the login page instead of auto-entering.
  */
 export async function probeAuthenticated(): Promise<boolean> {

@@ -162,7 +162,7 @@ Portal：upload-portal
 - 单节点 Docker Compose；
 - 多 API、多 Worker Compose 集群；
 - Kubernetes 部署模板；
-- Nginx/Gateway；
+- OpenResty/Gateway；
 - MinIO 初始化；
 - 架构图渲染（SVG→PNG；部署图用 Mermaid 内嵌 §24/§25）。
 
@@ -1775,7 +1775,7 @@ Portal 使用登录页模块（参考 IKC Log Center Web）：
 
 - 进入应用前调用 `GET /v1/files`（携带 `X-API-Key`）校验凭据，200 进入、401 停留登录页；
 - 校验通过的 Token 保存在 `localStorage`（刷新或重启浏览器后保持登录）；
-- 部署层注入 Token 时（`scripts/start-stack.sh` 生成并在 nginx 注入 `X-API-Key`），
+- 部署层注入 Token 时（`scripts/start-stack.sh` 生成并在 OpenResty 注入 `X-API-Key`），
   Portal 可免登录直接使用；未注入时显示登录页，由用户手动输入 API Key。
 
 生产环境推荐进一步升级为：
@@ -1784,7 +1784,7 @@ Portal 使用登录页模块（参考 IKC Log Center Web）：
 OIDC Authorization Code + PKCE
 ```
 
-不得把长期 API Key 硬编码进浏览器代码；Portal 登录 Token 缓存在 localStorage（与 nginx
+不得把长期 API Key 硬编码进浏览器代码；Portal 登录 Token 缓存在 localStorage（与 OpenResty
 注入的 `X-API-Key` 同源，未增加额外泄露面）。
 
 ---
@@ -2227,6 +2227,13 @@ ETag
 - TLS；
 - HSTS；
 - HTTP 跳转 HTTPS；
+- 隐藏 OpenResty/nginx 版本与监听端口（`server_tokens off`、`port_in_redirect off`、
+  `absolute_redirect off`，重定向与错误响应不暴露端口）；
+- 安全响应头（`X-Content-Type-Options: nosniff`、`X-Frame-Options: SAMEORIGIN`、
+  `Referrer-Policy: strict-origin-when-cross-origin`，防 MIME 嗅探 / 点击劫持 / Referrer 泄露）；
+- 大文件兼容超时（`proxy_connect_timeout 75s`，`proxy_read_timeout` / `proxy_send_timeout` /
+  `client_body_timeout 300s`——空闲超时而非总时长，慢速与暂停上传不中断）；
+- 静态目录隐藏文件防护（portal 拒绝 `/\.` 路径段，防止 `.env`/`.git` 泄露）；
 -可信代理列表；
 -真实客户端 IP；
 -请求大小和连接限制。
@@ -2340,7 +2347,7 @@ flowchart TD
             A["pyuploadx-upload-api<br/>uvicorn :8000"]
             W["pyuploadx-worker<br/>python -m app.worker.main"]
         end
-        P["pyuploadx-portal<br/>nginx :5173"]
+        P["pyuploadx-portal<br/>openresty :5173"]
         subgraph Third["第三方组件（本地服务 host.docker.internal 或自带 compose）"]
             PG[("PostgreSQL :5432")]
             R[("Redis :6379")]
@@ -2369,8 +2376,11 @@ Dockerfile（python:3.12-slim）
 ├── target api     → pyuploadx-upload-api / pyuploadx-migrate（同一镜像，不同入口）
 └── target worker  → pyuploadx-worker
 
-portal/Dockerfile（Vite 构建 + nginx）
+portal/Dockerfile（Vite 构建 + OpenResty）
 └── pyuploadx-portal
+
+deploy/nginx/Dockerfile（OpenResty 网关）
+└── pyuploadx-gateway
 ```
 
 | 容器 | 镜像目标 | 入口命令 | 生命周期 | 端口 |
@@ -2378,13 +2388,14 @@ portal/Dockerfile（Vite 构建 + nginx）
 | `pyuploadx-migrate` | api | `alembic upgrade head` | 一次性 Job，成功即退出 | 无 |
 | `pyuploadx-upload-api` | api | `uvicorn app.main:create_app` | 常驻 API | 8000 |
 | `pyuploadx-worker` | worker | `python -m app.worker.main` | 常驻后台任务 | 无 |
-| `pyuploadx-portal` | portal | `nginx` 托管静态资源 | 常驻 Web | 80 → 5173 |
+| `pyuploadx-portal` | portal | `OpenResty` 托管静态资源 | 常驻 Web | 80 → 5173 |
+| `pyuploadx-gateway` | 生产网关 | `OpenResty` TLS 终止 + 反代 | 常驻 Web | 80 / 443 |
 | `pyuploadx/minio-haproxy` | 加固 MinIO | 回环 MinIO + HAProxy 前置 | 常驻存储 | 9000 / 9001 |
 
 一键构建全部项目镜像：
 
 ```bash
-bash scripts/build-images.sh            # api / worker / portal / migrate / pyuploadx/minio-haproxy
+bash scripts/build-images.sh            # api / worker / portal / gateway / migrate / pyuploadx/minio-haproxy
 bash scripts/build-images.sh --export   # 构建并 docker save 导出到 docker/images/
 ```
 
@@ -2546,7 +2557,8 @@ docker compose -f deploy/cluster/compose.yaml up -d --scale upload-api=5 --scale
 ```
 
 - `upload-api` 多副本**不发布主机端口**（端口映射与 `--scale` 冲突），对外统一经
-  外部负载均衡（LB/Gateway）访问；
+  外部负载均衡（LB/Gateway）访问（OpenResty 网关实现：`deploy/nginx/Dockerfile` →
+  `pyuploadx-gateway`，部署见运维手册 §12）；
 - 本地验证副本健康：`docker exec pyuploadx-cluster-upload-api-1 curl -s localhost:8000/healthz`；
 - `portal` 保持单副本并发布 `${PORTAL_PORT:-5173}:80`。
 

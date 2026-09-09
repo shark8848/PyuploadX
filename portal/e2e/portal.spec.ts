@@ -33,7 +33,7 @@ test.beforeAll(async () => {
 
 async function login(page: Page, key: string = API_KEY): Promise<void> {
   await page.goto("/");
-  // 登录页在鉴权探测完成后才渲染；等待其出现，若 nginx 已注入 token 则直接进入。
+  // 登录页在鉴权探测完成后才渲染；等待其出现，若 OpenResty 已注入 token 则直接进入。
   const input = page.getByPlaceholder("请输入 API Key");
   try {
     await input.waitFor({ state: "visible", timeout: 10_000 });

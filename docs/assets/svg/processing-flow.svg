@@ -1,0 +1,356 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="1780" viewBox="0 0 1560 1780" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#455A64"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#E65100"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1560" height="1780" fill="#FAFAFA"/>
+  <text x="780" y="38" text-anchor="middle" font-size="22" font-weight="bold" fill="#263238">PyUploadX 整体处理流程与核心类</text>
+
+  <!-- ============ Row 1: 客户端层 ============ -->
+  <text x="40" y="64" font-size="13" font-weight="bold" fill="#1565C0">客户端 / 入口</text>
+
+  <g>
+    <rect x="40" y="72" width="470" height="150" rx="8" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5"/>
+    <rect x="40" y="72" width="470" height="24" rx="8" fill="#1565C0"/>
+    <text x="275" y="89" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">SDK sdk/pyuploadx（依赖仅 httpx）</text>
+    <text x="52" y="116" font-size="12" fill="#263238">class UploadClient / Client（门面，自动选直传或分片）</text>
+    <text x="52" y="135" font-size="12" fill="#263238">  upload_file / upload_large_file / upload_directory</text>
+    <text x="52" y="154" font-size="12" fill="#263238">  download / download_from_url / delete / list_files</text>
+    <text x="52" y="173" font-size="12" fill="#263238">multipart 分片 + Scheduler 并发 + StateStore 断点续传</text>
+    <text x="52" y="192" font-size="12" fill="#263238">fingerprint / ignore / manifest / directory_state / retry</text>
+  </g>
+
+  <g>
+    <rect x="530" y="72" width="330" height="150" rx="8" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5"/>
+    <rect x="530" y="72" width="330" height="24" rx="8" fill="#1565C0"/>
+    <text x="695" y="89" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">Portal（React + Vite）</text>
+    <text x="542" y="116" font-size="12" fill="#263238">pages / components / api client</text>
+    <text x="542" y="135" font-size="12" fill="#263238">大文件分片上传 UI（断点续传）</text>
+    <text x="542" y="154" font-size="12" fill="#263238">directory-upload 目录遍历</text>
+    <text x="542" y="173" font-size="12" fill="#263238">打包 manifest → 流式提交 entries</text>
+    <text x="542" y="192" font-size="12" fill="#263238">i18n / theme / 生命周期管理</text>
+  </g>
+
+  <g>
+    <rect x="880" y="72" width="300" height="150" rx="8" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5"/>
+    <rect x="880" y="72" width="300" height="24" rx="8" fill="#1565C0"/>
+    <text x="1030" y="89" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">CLI（python -m upload_service）</text>
+    <text x="892" y="116" font-size="12" fill="#263238">app/cli.py 命令行入口</text>
+    <text x="892" y="135" font-size="12" fill="#263238">config validate / show --redact-secrets</text>
+    <text x="892" y="154" font-size="12" fill="#263238">reconcile upload|file|directory</text>
+    <text x="892" y="173" font-size="12" fill="#263238">  --dry-run 状态与存储对账</text>
+  </g>
+
+  <g>
+    <rect x="1200" y="72" width="320" height="150" rx="8" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5"/>
+    <rect x="1200" y="72" width="320" height="24" rx="8" fill="#1565C0"/>
+    <text x="1360" y="89" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">外部调用方（非本仓库）</text>
+    <text x="1212" y="116" font-size="12" fill="#263238">任意服务 / 脚本 / curl</text>
+    <text x="1212" y="135" font-size="12" fill="#263238">REST: /v1/**</text>
+    <text x="1212" y="154" font-size="12" fill="#263238">presign PUT/GET 预签名直传</text>
+    <text x="1212" y="173" font-size="12" fill="#263238">Webhook 接收方（事件回调）</text>
+  </g>
+
+  <!-- Row1 -> Row2 箭头 -->
+  <line x1="275" y1="222" x2="275" y2="268" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="282" y="250" font-size="12" font-weight="bold" fill="#C62828">① 分片上传 / 目录任务请求</text>
+  <line x1="695" y1="222" x2="695" y2="268" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1030" y1="222" x2="1030" y2="268" stroke="#455A64" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+  <text x="1037" y="250" font-size="11" fill="#546E7A">运维对账</text>
+  <line x1="1360" y1="222" x2="1360" y2="268" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ============ Row 2: 接口层 ============ -->
+  <text x="40" y="264" font-size="13" font-weight="bold" fill="#2E7D32">协议接口层 app/api（FastAPI）</text>
+
+  <g>
+    <rect x="40" y="272" width="460" height="210" rx="8" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.5"/>
+    <rect x="40" y="272" width="460" height="24" rx="8" fill="#2E7D32"/>
+    <text x="270" y="289" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">app/main.py create_app()（FastAPI 工厂）</text>
+    <text x="52" y="316" font-size="12" fill="#263238">load_settings(config.yaml) + validate_settings</text>
+    <text x="52" y="335" font-size="12" fill="#263238">configure_logging + build_app_state（依赖装配）</text>
+    <text x="52" y="354" font-size="12" fill="#263238">CORS 中间件（portal.origins）</text>
+    <text x="52" y="373" font-size="12" font-weight="bold" fill="#C62828">② request_context 中间件: X-Request-ID / X-Trace-ID</text>
+    <text x="52" y="392" font-size="12" fill="#263238">register_exception_handlers（统一错误映射）</text>
+    <text x="52" y="411" font-size="12" fill="#263238">lifespan: create_tables（dev）→ yield → engine.dispose</text>
+    <text x="52" y="430" font-size="12" fill="#263238">/healthz /startupz /readyz /metrics 健康与指标</text>
+    <text x="52" y="449" font-size="12" fill="#263238">/docs /openapi.json OpenAPI 自动文档</text>
+  </g>
+
+  <g>
+    <rect x="520" y="272" width="500" height="210" rx="8" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.5"/>
+    <rect x="520" y="272" width="500" height="24" rx="8" fill="#2E7D32"/>
+    <text x="770" y="289" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">app/api/v1 路由（prefix /v1）</text>
+    <text x="532" y="316" font-size="12" fill="#263238">uploads.py: POST ""/resume、GET {id}、parts/presign、</text>
+    <text x="532" y="335" font-size="12" fill="#263238">  PUT parts/{n}（代理流式）、parts/commit、refresh/complete/abort</text>
+    <text x="532" y="354" font-size="12" fill="#263238">files.py: POST upload、GET list/{id}/download、presign-download、</text>
+    <text x="532" y="373" font-size="12" fill="#263238">  permanent-link、download-link、DELETE {id}</text>
+    <text x="532" y="392" font-size="12" fill="#263238">directory_uploads.py: job / entries(+stream) / manifest /</text>
+    <text x="532" y="411" font-size="12" fill="#263238">  entries initiate+result / retry / complete / cancel / lifecycle</text>
+    <text x="532" y="430" font-size="12" fill="#263238">lifecycle.py: get/patch/extend/make-permanent/legal-hold</text>
+    <text x="532" y="449" font-size="12" fill="#263238">presign.py: PUT/GET；buckets.py；settings.py；client_config.py</text>
+  </g>
+
+  <g>
+    <rect x="1040" y="272" width="480" height="210" rx="8" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.5"/>
+    <rect x="1040" y="272" width="480" height="24" rx="8" fill="#2E7D32"/>
+    <text x="1280" y="289" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">鉴权 / 错误 / 幂等（app/core）</text>
+    <text x="1052" y="316" font-size="12" fill="#263238">core/auth.py: ApiKeyAuthenticator → Identity(tenant_id)</text>
+    <text x="1052" y="335" font-size="12" fill="#263238">  per-tenant API Key 校验 + bucket 归属验证</text>
+    <text x="1052" y="354" font-size="12" font-weight="bold" fill="#C62828">core/errors.py: 统一错误码 + envelope 响应</text>
+    <text x="1052" y="373" font-size="12" fill="#263238">core/idempotency.py: Idempotency-Key 幂等去重（DB 记录）</text>
+    <text x="1052" y="392" font-size="12" fill="#263238">core/logging: request_id_var / trace_id_var 上下文日志</text>
+    <text x="1052" y="411" font-size="12" fill="#263238">响应头: X-Request-ID 回写 + X-Trace-ID 透传</text>
+    <text x="1052" y="430" font-size="12" fill="#263238">错误语义对齐 docs_product-design.md §13/§14</text>
+  </g>
+
+  <!-- Row2 -> Row3 箭头 -->
+  <line x1="270" y1="482" x2="270" y2="528" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="770" y1="482" x2="770" y2="528" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1280" y1="482" x2="1280" y2="528" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ============ Row 3: 运行时公共组件 ============ -->
+  <text x="40" y="524" font-size="13" font-weight="bold" fill="#8D6E00">运行时公共组件（全局共享）</text>
+
+  <g>
+    <rect x="40" y="532" width="360" height="110" rx="8" fill="#FFFDE7" stroke="#F9A825" stroke-width="1.5"/>
+    <rect x="40" y="532" width="360" height="24" rx="8" fill="#F9A825"/>
+    <text x="220" y="549" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">app/config（YAML + env）</text>
+    <text x="52" y="576" font-size="12" fill="#263238">loader.load_settings / validation.validate_settings</text>
+    <text x="52" y="595" font-size="12" fill="#263238">Settings: app / database / redis / storage /</text>
+    <text x="52" y="614" font-size="12" fill="#263238">lifecycle / worker / portal（secrets 走 env）</text>
+  </g>
+
+  <g>
+    <rect x="420" y="532" width="460" height="110" rx="8" fill="#FFFDE7" stroke="#F9A825" stroke-width="1.5"/>
+    <rect x="420" y="532" width="460" height="24" rx="8" fill="#F9A825"/>
+    <text x="650" y="549" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">app/core 能力组件</text>
+    <text x="432" y="576" font-size="12" fill="#263238">ranges: Range 头解析与校验　streaming: 流式转发</text>
+    <text x="432" y="595" font-size="12" fill="#263238">metrics: Prometheus 指标　tracing: 链路追踪</text>
+    <text x="432" y="614" font-size="12" fill="#263238">permanent_links: 永久链接　logging: 结构化日志</text>
+  </g>
+
+  <g>
+    <rect x="900" y="532" width="300" height="110" rx="8" fill="#FFFDE7" stroke="#F9A825" stroke-width="1.5"/>
+    <rect x="900" y="532" width="300" height="24" rx="8" fill="#F9A825"/>
+    <text x="1050" y="549" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">app/db/session</text>
+    <text x="912" y="576" font-size="12" fill="#263238">build_engine（async）</text>
+    <text x="912" y="595" font-size="12" fill="#263238">build_session_factory</text>
+    <text x="912" y="614" font-size="12" fill="#263238">create_tables（dev/test）</text>
+  </g>
+
+  <g>
+    <rect x="1220" y="532" width="300" height="110" rx="8" fill="#FFFDE7" stroke="#F9A825" stroke-width="1.5"/>
+    <rect x="1220" y="532" width="300" height="24" rx="8" fill="#F9A825"/>
+    <text x="1370" y="549" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">app/api/dependencies</text>
+    <text x="1232" y="576" font-size="12" fill="#263238">build_app_state: 装配 engine /</text>
+    <text x="1232" y="595" font-size="12" fill="#263238">session_factory / storage / services</text>
+    <text x="1232" y="614" font-size="12" fill="#263238">storage.factory.build_storage</text>
+  </g>
+
+  <!-- Row3 -> Row4 箭头 -->
+  <line x1="270" y1="642" x2="270" y2="688" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="620" y1="642" x2="620" y2="688" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="975" y1="642" x2="975" y2="688" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1340" y1="642" x2="1340" y2="688" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ============ Row 4: 服务层 ============ -->
+  <text x="40" y="684" font-size="13" font-weight="bold" fill="#6A1B9A">服务层 app/services（领域编排）</text>
+
+  <g>
+    <rect x="40" y="692" width="370" height="210" rx="8" fill="#F3E5F5" stroke="#6A1B9A" stroke-width="1.5"/>
+    <rect x="40" y="692" width="370" height="24" rx="8" fill="#6A1B9A"/>
+    <text x="225" y="709" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">UploadService（分片上传核心）</text>
+    <text x="52" y="736" font-size="12" fill="#263238">create_session（initiated → uploading）</text>
+    <text x="52" y="755" font-size="12" fill="#263238">presign_parts（S3 预签名）/ proxy_upload_part</text>
+    <text x="52" y="774" font-size="12" fill="#263238">commit_part（分片登记 + upsert）</text>
+    <text x="52" y="793" font-size="12" fill="#263238">list_committed_parts / resume / refresh</text>
+    <text x="52" y="812" font-size="12" font-weight="bold" fill="#C62828">④ complete: 校验分片/ETag → completing</text>
+    <text x="52" y="831" font-size="12" fill="#263238">  → storage.complete_multipart_upload → committed</text>
+    <text x="52" y="850" font-size="12" fill="#263238">abort（aborted）/ 状态机 transition_upload</text>
+  </g>
+
+  <g>
+    <rect x="430" y="692" width="350" height="210" rx="8" fill="#F3E5F5" stroke="#6A1B9A" stroke-width="1.5"/>
+    <rect x="430" y="692" width="350" height="24" rx="8" fill="#6A1B9A"/>
+    <text x="605" y="709" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">FileService（文件对象）</text>
+    <text x="442" y="736" font-size="12" fill="#263238">upload（小文件一步直传 committed）</text>
+    <text x="442" y="755" font-size="12" fill="#263238">list_files / get_file / delete</text>
+    <text x="442" y="774" font-size="12" fill="#263238">download（Range → 流式响应）</text>
+    <text x="442" y="793" font-size="12" fill="#263238">presign_download（直传下载链接）</text>
+    <text x="442" y="812" font-size="12" fill="#263238">permanent_link（永久链接）</text>
+    <text x="442" y="831" font-size="12" fill="#263238">core/ranges + core/streaming + permanent_links</text>
+  </g>
+
+  <g>
+    <rect x="800" y="692" width="350" height="210" rx="8" fill="#F3E5F5" stroke="#6A1B9A" stroke-width="1.5"/>
+    <rect x="800" y="692" width="350" height="24" rx="8" fill="#6A1B9A"/>
+    <text x="975" y="709" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">DirectoryUploadService（目录任务）</text>
+    <text x="812" y="736" font-size="12" fill="#263238">create job → add/entries(+stream 批量)</text>
+    <text x="812" y="755" font-size="12" fill="#263238">manifest complete（清单齐备校验）</text>
+    <text x="812" y="774" font-size="12" fill="#263238">entries initiate / result（逐文件回执）</text>
+    <text x="812" y="793" font-size="12" fill="#263238">retry / complete / cancel / lifecycle patch</text>
+    <text x="812" y="812" font-size="12" fill="#263238">aggregation 聚合进度 + 冲突策略</text>
+    <text x="812" y="831" font-size="12" fill="#263238">directory_upload.state_machine.transition</text>
+  </g>
+
+  <g>
+    <rect x="1170" y="692" width="350" height="210" rx="8" fill="#F3E5F5" stroke="#6A1B9A" stroke-width="1.5"/>
+    <rect x="1170" y="692" width="350" height="24" rx="8" fill="#6A1B9A"/>
+    <text x="1345" y="709" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">生命周期与治理服务</text>
+    <text x="1182" y="736" font-size="12" fill="#263238">LifecycleService: get/patch/extend、</text>
+    <text x="1182" y="755" font-size="12" fill="#263238">  make-permanent、legal-hold、过期扫描</text>
+    <text x="1182" y="774" font-size="12" fill="#263238">  lifecycle.state_machine.transition_lifecycle</text>
+    <text x="1182" y="793" font-size="12" fill="#263238">CleanupService: 过期会话 / 孤儿分片清理</text>
+    <text x="1182" y="812" font-size="12" fill="#263238">BucketService / SettingService（键值配置）</text>
+    <text x="1182" y="831" font-size="12" fill="#263238">WebhookService: outbox 事件投递</text>
+    <text x="1182" y="850" font-size="12" fill="#263238">ReconcileService: 状态与存储对账</text>
+  </g>
+
+  <!-- Row4 -> Row5 箭头 -->
+  <line x1="225" y1="902" x2="225" y2="948" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="232" y="930" font-size="12" font-weight="bold" fill="#C62828">③ ORM 读写（repository）</text>
+  <line x1="605" y1="902" x2="605" y2="948" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="975" y1="902" x2="975" y2="948" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1345" y1="902" x2="1345" y2="948" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ============ Row 5: 持久层 ============ -->
+  <text x="40" y="944" font-size="13" font-weight="bold" fill="#00695C">持久层 app/db（SQLAlchemy 2 ORM）</text>
+
+  <g>
+    <rect x="40" y="952" width="360" height="190" rx="8" fill="#E0F2F1" stroke="#00695C" stroke-width="1.5"/>
+    <rect x="40" y="952" width="360" height="24" rx="8" fill="#00695C"/>
+    <text x="220" y="969" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">app/db/repositories（async）</text>
+    <text x="52" y="996" font-size="12" fill="#263238">file_repository: get / get_by_object / list</text>
+    <text x="52" y="1015" font-size="12" fill="#263238">upload_repository: get / update_status / touch</text>
+    <text x="52" y="1034" font-size="12" fill="#263238">part_repository: upsert（ON CONFLICT）/ list</text>
+    <text x="52" y="1053" font-size="12" fill="#263238">directory_repository: job / status / counts</text>
+    <text x="52" y="1072" font-size="12" fill="#263238">bucket_repository / setting_repository</text>
+    <text x="52" y="1091" font-size="12" fill="#263238">禁止裸 SQL，upsert 走 postgresql.insert</text>
+  </g>
+
+  <g>
+    <rect x="420" y="952" width="620" height="190" rx="8" fill="#E0F2F1" stroke="#00695C" stroke-width="1.5"/>
+    <rect x="420" y="952" width="620" height="24" rx="8" fill="#00695C"/>
+    <text x="730" y="969" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">app/db/models.py（Mapped / mapped_column）</text>
+    <text x="432" y="996" font-size="12" fill="#263238">FileObject（status: active/deleted，lifecycle 字段）</text>
+    <text x="432" y="1015" font-size="12" fill="#263238">UploadSession（mode: direct/multipart，storage_upload_id）+ UploadPart（etag/size）</text>
+    <text x="432" y="1034" font-size="12" fill="#263238">DirectoryUploadJob + DirectoryUploadEntry（source/manifest/conflict_policy）</text>
+    <text x="432" y="1053" font-size="12" fill="#263238">LifecycleEvent / IdempotencyRecord / WebhookOutboxMessage</text>
+    <text x="432" y="1072" font-size="12" fill="#263238">StorageBucket（backend: local/s3）/ AppSetting（运行时键值配置）</text>
+    <text x="432" y="1091" font-size="12" fill="#263238">枚举: UploadStatus / PartStatus / FileStatus / LifecycleStatus / DirectoryJobStatus …</text>
+  </g>
+
+  <g>
+    <rect x="1060" y="952" width="460" height="190" rx="8" fill="#ECEFF1" stroke="#546E7A" stroke-width="1.5"/>
+    <rect x="1060" y="952" width="460" height="24" rx="8" fill="#546E7A"/>
+    <text x="1290" y="969" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">PostgreSQL（外部，asyncpg）</text>
+    <text x="1072" y="996" font-size="12" fill="#263238">alembic 迁移管理 schema（versions/）</text>
+    <text x="1072" y="1015" font-size="12" fill="#263238">dev/test 环境可用 SQLite（create_tables 兜底）</text>
+    <text x="1072" y="1034" font-size="12" fill="#263238">事务边界：repository 内 async session</text>
+    <text x="1072" y="1053" font-size="12" fill="#263238">ON CONFLICT upsert（part_repository）</text>
+    <text x="1072" y="1072" font-size="12" fill="#263238">Redis（RedisConfig）：健康检查 / 指标观测</text>
+  </g>
+
+  <!-- Row5 -> Row6 箭头 -->
+  <line x1="225" y1="1142" x2="225" y2="1188" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="620" y1="1142" x2="620" y2="1188" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="627" y="1170" font-size="12" font-weight="bold" fill="#E65100">⑤ 对象读写</text>
+  <line x1="1290" y1="1142" x2="1290" y2="1188" stroke="#455A64" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+
+  <!-- ============ Row 6: 存储适配层 ============ -->
+  <text x="40" y="1184" font-size="13" font-weight="bold" fill="#E65100">存储适配层 app/storage（可插拔后端）</text>
+
+  <g>
+    <rect x="40" y="1192" width="400" height="150" rx="8" fill="#FFF3E0" stroke="#E65100" stroke-width="1.5"/>
+    <rect x="40" y="1192" width="400" height="24" rx="8" fill="#E65100"/>
+    <text x="240" y="1209" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">StorageAdapter（Protocol）+ StorageCapabilities</text>
+    <text x="52" y="1236" font-size="12" fill="#263238">put_object / get_object（range）/ delete_object</text>
+    <text x="52" y="1255" font-size="12" fill="#263238">create_bucket / bucket_exists / delete_bucket</text>
+    <text x="52" y="1274" font-size="12" fill="#263238">multipart: create / upload_part / complete / list_parts</text>
+    <text x="52" y="1293" font-size="12" fill="#263238">presign_put / presign_get（按 capabilities 开关）</text>
+    <text x="52" y="1312" font-size="12" fill="#263238">capabilities: list_parts / presign / multipart 支持</text>
+  </g>
+
+  <g>
+    <rect x="460" y="1192" width="330" height="150" rx="8" fill="#FFF3E0" stroke="#E65100" stroke-width="1.5"/>
+    <rect x="460" y="1192" width="330" height="24" rx="8" fill="#E65100"/>
+    <text x="625" y="1209" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">LocalStorageAdapter</text>
+    <text x="472" y="1236" font-size="12" fill="#263238">本地文件系统对象读写</text>
+    <text x="472" y="1255" font-size="12" fill="#263238">分片临时目录 + complete 合并</text>
+    <text x="472" y="1274" font-size="12" fill="#263238">presign 降级为代理上传/下载</text>
+    <text x="472" y="1293" font-size="12" fill="#263238">文件锁 / 原子落盘</text>
+  </g>
+
+  <g>
+    <rect x="810" y="1192" width="330" height="150" rx="8" fill="#FFF3E0" stroke="#E65100" stroke-width="1.5"/>
+    <rect x="810" y="1192" width="330" height="24" rx="8" fill="#E65100"/>
+    <text x="975" y="1209" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">S3StorageAdapter</text>
+    <text x="822" y="1236" font-size="12" fill="#263238">S3 API（botocore 客户端，异步包装）</text>
+    <text x="822" y="1255" font-size="12" fill="#263238">native multipart（upload_id 映射）</text>
+    <text x="822" y="1274" font-size="12" fill="#263238">presigned URL 直传 / 直下</text>
+    <text x="822" y="1293" font-size="12" fill="#263238">ETag 校验 / list_parts 对账</text>
+  </g>
+
+  <g>
+    <rect x="1160" y="1192" width="360" height="150" rx="8" fill="#ECEFF1" stroke="#546E7A" stroke-width="1.5"/>
+    <rect x="1160" y="1192" width="360" height="24" rx="8" fill="#546E7A"/>
+    <text x="1340" y="1209" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">对象存储（外部）</text>
+    <text x="1172" y="1236" font-size="12" fill="#263238">Local FS：宿主机 / PVC 挂载卷</text>
+    <text x="1172" y="1255" font-size="12" fill="#263238">S3 / MinIO：对象桶（bucket 归属租户）</text>
+    <text x="1172" y="1274" font-size="12" fill="#263238">deploy/minio：MinIO + HAProxy 双活</text>
+    <text x="1172" y="1293" font-size="12" fill="#263238">凭据仅经 env 注入，不入库不入码</text>
+  </g>
+
+  <!-- Row6 -> Row7 箭头 -->
+  <line x1="225" y1="1342" x2="225" y2="1388" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="232" y="1370" font-size="12" font-weight="bold" fill="#C62828">⑥ 异步后台循环</text>
+  <line x1="620" y1="1342" x2="620" y2="1388" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="975" y1="1342" x2="975" y2="1388" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ============ Row 7: Worker 进程 ============ -->
+  <text x="40" y="1384" font-size="13" font-weight="bold" fill="#283593">Worker 进程 app/worker（独立 asyncio 进程）</text>
+
+  <g>
+    <rect x="40" y="1392" width="430" height="130" rx="8" fill="#E8EAF6" stroke="#283593" stroke-width="1.5"/>
+    <rect x="40" y="1392" width="430" height="24" rx="8" fill="#283593"/>
+    <text x="255" y="1409" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">app/worker/main.py main() → _run_worker()</text>
+    <text x="52" y="1436" font-size="12" fill="#263238">按配置装配 engine / session_factory / storage</text>
+    <text x="52" y="1455" font-size="12" fill="#263238">asyncio.create_task 注册后台循环</text>
+    <text x="52" y="1474" font-size="12" fill="#263238">SIGINT/SIGTERM → stop.set() → cancel + dispose</text>
+    <text x="52" y="1493" font-size="12" fill="#263238">worker.cleanup.enabled / lifecycle.worker.enabled</text>
+  </g>
+
+  <g>
+    <rect x="490" y="1392" width="480" height="130" rx="8" fill="#E8EAF6" stroke="#283593" stroke-width="1.5"/>
+    <rect x="490" y="1392" width="480" height="24" rx="8" fill="#283593"/>
+    <text x="730" y="1409" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">cleanup_loop（worker/cleanup.py）</text>
+    <text x="502" y="1436" font-size="12" fill="#263238">interval_seconds 周期扫描</text>
+    <text x="502" y="1455" font-size="12" fill="#263238">→ CleanupService: 过期 UploadSession（expired）</text>
+    <text x="502" y="1474" font-size="12" fill="#263238">→ 孤儿分片 / 临时对象删除 → storage.delete_object</text>
+  </g>
+
+  <g>
+    <rect x="990" y="1392" width="530" height="130" rx="8" fill="#E8EAF6" stroke="#283593" stroke-width="1.5"/>
+    <rect x="990" y="1392" width="530" height="24" rx="8" fill="#283593"/>
+    <text x="1255" y="1409" text-anchor="middle" font-size="13" font-weight="bold" fill="#FFFFFF">lifecycle_loop（worker/lifecycle.py）</text>
+    <text x="1002" y="1436" font-size="12" fill="#263238">scan_interval_seconds 批量（batch_size）扫描到期文件</text>
+    <text x="1002" y="1455" font-size="12" fill="#263238">→ LifecycleService 状态转换（transition_lifecycle）</text>
+    <text x="1002" y="1474" font-size="12" fill="#263238">→ 删除/降级对象 + 写 LifecycleEvent + outbox 投递</text>
+  </g>
+
+  <!-- ============ 图例：主流程 ============ -->
+  <rect x="40" y="1540" width="1480" height="200" rx="8" fill="#FFFFFF" stroke="#B0BEC5" stroke-width="1"/>
+  <text x="56" y="1566" font-size="14" font-weight="bold" fill="#263238">主流程图例 —— 大文件分片上传（POST /v1/uploads → complete）</text>
+  <text x="56" y="1590" font-size="12" fill="#263238">① SDK/Portal 发起：create_session（ initiated → uploading，bucket 归属校验）　② 分片传输：S3 走 parts/presign 预签名直传，或 PUT /uploads/{id}/parts/{n} 服务端代理流式</text>
+  <text x="56" y="1611" font-size="12" fill="#263238">③ parts/commit 逐片登记（part_repository upsert，ETag/size 落库）　④ complete：校验分片完整性/ETag → completing → storage.complete_multipart_upload → FileObject committed</text>
+  <text x="56" y="1632" font-size="12" fill="#263238">⑤ 下载：GET /v1/files/{id}/download → ranges 解析 → storage.get_object(range) → streaming 流式响应；presign-download 输出直下链接</text>
+  <text x="56" y="1653" font-size="12" fill="#6A1B9A">目录路径：POST /v1/directory-uploads → entries/stream 批量登记 → manifest/complete 清单校验 → 逐文件 initiate/result 回执 → complete 聚合（conflict_policy 冲突处理）</text>
+  <text x="56" y="1674" font-size="12" fill="#6A1B9A">异步路径：worker 独立进程 → cleanup_loop 清理过期会话/孤儿分片；lifecycle_loop 扫描到期文件 → 状态机转换 → 删除对象 + LifecycleEvent + Webhook outbox</text>
+  <text x="56" y="1695" font-size="12" fill="#546E7A">横切约定：全链路 X-Request-ID/X-Trace-ID；错误码与状态机严格对齐 docs/docs_product-design.md §12/§13/§14/§16；schema 变更仅经 Alembic 迁移</text>
+  <text x="56" y="1716" font-size="12" fill="#546E7A">图例说明：实线为同步调用，虚线为异步/运维路径；圆角矩形为模块（顶栏色 = 所属层），灰色为外部依赖</text>
+</svg>

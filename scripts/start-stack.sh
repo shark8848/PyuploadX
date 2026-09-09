@@ -3,7 +3,7 @@
 #
 # - Set PORTAL_API_TOKEN for a static token; otherwise a random token is
 #   generated on every start ("dynamic token").
-# - The token is injected by the portal nginx as X-API-Key and registered in
+# - The token is injected by the portal OpenResty as X-API-Key and registered in
 #   UPLOAD_API_KEYS so the API accepts it; the browser never sees it.
 # - Extra compose files can be appended, e.g.:
 #     scripts/start-stack.sh -f /tmp/pg-proxy.yml

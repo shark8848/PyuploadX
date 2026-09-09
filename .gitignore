@@ -29,3 +29,6 @@ config/pypi.env
 
 # Build artifacts
 build/
+
+# Exported docker image tarballs (build-images.sh --export)
+docker/images/

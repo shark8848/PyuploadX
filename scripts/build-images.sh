@@ -6,6 +6,7 @@
 #   pyuploadx-upload-api:latest  /  pyuploadx-migrate:latest  (Dockerfile target api)
 #   pyuploadx-worker:latest                                    (Dockerfile target worker)
 #   pyuploadx-portal:latest                                    (portal/Dockerfile)
+#   pyuploadx-gateway:latest                                   (deploy/nginx/Dockerfile, OpenResty gateway)
 #   pyuploadx/minio-haproxy:latest                             (deploy/minio/Dockerfile, hardened MinIO)
 #
 # Usage:
@@ -27,6 +28,9 @@ docker build --target worker -t pyuploadx-worker:latest .
 echo ">>> Building portal image..."
 docker build -t pyuploadx-portal:latest portal/
 
+echo ">>> Building OpenResty gateway image..."
+docker build -t pyuploadx-gateway:latest deploy/nginx/
+
 echo ">>> Building hardened MinIO image..."
 bash deploy/minio/build.sh
 
@@ -36,6 +40,7 @@ if [ "$EXPORT" = true ]; then
     docker save -o docker/images/pyuploadx-upload-api_latest.tar pyuploadx-upload-api:latest
     docker save -o docker/images/pyuploadx-worker_latest.tar pyuploadx-worker:latest
     docker save -o docker/images/pyuploadx-portal_latest.tar pyuploadx-portal:latest
+    docker save -o docker/images/pyuploadx-gateway_latest.tar pyuploadx-gateway:latest
     docker save -o docker/images/pyuploadx-migrate_latest.tar pyuploadx-migrate:latest
     docker save -o docker/images/pyuploadx__minio-haproxy_latest.tar pyuploadx/minio-haproxy:latest
 fi

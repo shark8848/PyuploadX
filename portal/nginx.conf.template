@@ -4,6 +4,16 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Hide nginx version and never expose the listening port in responses.
+    server_tokens off;
+    port_in_redirect off;
+    absolute_redirect off;
+
+    # 安全响应头：防 MIME 嗅探、点击劫持与 Referrer 泄露。
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
     # 使用 Docker 内置 DNS，在请求时解析 upstream，避免启动时 DNS 抖动导致 nginx 退出。
     resolver 127.0.0.11 valid=10s ipv6=off;
     set $upload_api http://upload-api:8000;
@@ -18,6 +28,17 @@ server {
     # index.html 不缓存：保证刷新即拿到最新入口，避免引用旧 hashed 资源。
     location = /index.html {
         add_header Cache-Control "no-cache";
+        # add_header 在 location 内不继承 server 级，重复安全头保持响应一致。
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    }
+
+    # 禁止访问隐藏文件（.env/.git 等），防御静态目录信息泄露。
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
     }
 
     location / {
@@ -26,11 +47,16 @@ server {
 
     location /v1/ {
         proxy_pass $upload_api;
+        # Rewrite upstream redirects so internal host/port (upload-api:8000) never leaks.
+        proxy_redirect http://upload-api:8000 /;
         proxy_set_header X-API-Key $portal_key;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Request-ID $http_x_request_id;
+        proxy_connect_timeout 75s;
         proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        client_body_timeout 300s;
         client_max_body_size 0;
     }
 

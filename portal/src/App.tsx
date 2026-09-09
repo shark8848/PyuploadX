@@ -109,7 +109,7 @@ function AuthenticatedApp() {
       .fetchConfig()
       .then(async (cfg) => {
         // client-config 是公开端点；仍需确认当前上下文已鉴权（本地无 token
-        // 且 nginx 未注入时进入登录页），否则所有受保护请求都会 401。
+        // 且 OpenResty 未注入时进入登录页），否则所有受保护请求都会 401。
         if (await api.probeAuthenticated()) {
           setConfig(cfg);
           setAuth("ready");
@@ -129,7 +129,7 @@ function AuthenticatedApp() {
     if (saved) {
       api.setApiToken(saved);
     }
-    // 无手动 token 时也尝试加载配置：nginx 会自动注入 X-API-Key（start-stack.sh），
+    // 无手动 token 时也尝试加载配置：OpenResty 会自动注入 X-API-Key（start-stack.sh），
     // 此时免登录；注入不可用时进入登录页。
     void enterApp();
   }, [enterApp]);

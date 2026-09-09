@@ -31,12 +31,12 @@ export UPLOAD_DATABASE_URL='postgresql+asyncpg://upload:upload@localhost:5432/up
 export UPLOAD_REDIS_URL='redis://localhost:6379/0'
 export UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL='http://localhost:9000'
 export S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin
-# 推荐：portal 自动获取 token（nginx 注入 X-API-Key），无需在浏览器粘贴 API Key。
+# 推荐：portal 自动获取 token（OpenResty 注入 X-API-Key），无需在浏览器粘贴 API Key。
 # 设置 PORTAL_API_TOKEN 可用固定 token；不设置则每次启动生成随机 token。
 bash scripts/start-stack.sh           # 等价于 docker compose up -d --build（额外下发 portal token）
 ```
 
-Portal 打开后会自动完成鉴权（nginx 注入 token）；若部署环境未注入 token，则显示登录页，
+Portal 打开后会自动完成鉴权（OpenResty 注入 token）；若部署环境未注入 token，则显示登录页，
 输入有效的 API Key 后进入（Token 保存在 localStorage，刷新或重启浏览器后保持登录）。
 
 Portal 主要界面：
@@ -70,7 +70,7 @@ docker compose -f deploy/cluster/compose.yaml up -d --build --scale upload-api=3
 数据库迁移由 `migrate` 容器（`alembic upgrade head`）在 API 启动前完成。日志可选用
 IKC Log Center 投递（`log_center` 配置段，默认关闭）。
 
-一键构建全部项目镜像（upload-api / worker / portal / migrate / 加固 MinIO）：
+一键构建全部项目镜像（upload-api / worker / portal / gateway / migrate / 加固 MinIO）：
 
 ```bash
 bash scripts/build-images.sh            # 构建全部项目镜像
@@ -85,6 +85,8 @@ HAProxy（9000 S3 / 9001 控制台）；数据必须外部挂载（`-v /data/min
 - API/OpenAPI：http://localhost:8000/docs
 - Portal：http://localhost:5173（API Key：`dev-key`）
 - MinIO Console：http://localhost:9001（`minioadmin` / `minioadmin`）
+- 生产网关（可选）：`pyuploadx-gateway`（OpenResty HTTPS，TLS 终止 + 反代，部署见
+  `docs/deploy-offline.md` §12）
 
 ## Kubernetes 部署
 
@@ -102,8 +104,8 @@ kubectl apply -f deploy/kubernetes/
 日志可选投递到 IKC Log Center：在 `ConfigMap/upload-config` 的 `log_center` 段配置
 （默认关闭，`enabled: false`）。
 
-生产强制 HTTPS：Ingress 终止 TLS；单节点/集群部署由 `deploy/nginx/gateway.conf` 强制跳转
-HTTPS 并拒绝非白名单 Origin 的 CORS 请求。
+生产强制 HTTPS：Ingress 终止 TLS；单节点/集群部署由 `deploy/nginx/`（OpenResty 网关，
+`pyuploadx-gateway`）强制跳转 HTTPS 并拒绝非白名单 Origin 的 CORS 请求。
 
 ## 本地开发
 
@@ -347,7 +349,7 @@ python scripts/benchmark_upload.py --large-mb 64 --part-size 8388608 --concurren
 app/        FastAPI 后端（api/config/core/db/storage/services/lifecycle/worker）
 sdk/pyuploadx/  Python 客户端 SDK
 portal/     React + TypeScript Portal（Dexie/IndexedDB 断点状态）
-deploy/     单节点/集群 Compose、Kubernetes（含 ServiceMonitor）、Nginx、MinIO 引导
+deploy/     单节点/集群 Compose、Kubernetes（含 ServiceMonitor）、OpenResty 网关、MinIO 引导
 config/     YAML 配置示例
 tests/      单元与集成测试
 scripts/    渲染/文档检查/看板同步/性能测试脚本
@@ -363,7 +365,7 @@ docs/       设计文档、运维手册与架构图（SVG 源 / PNG 生成）
 
 ## 安全要点
 
-- 生产强制 HTTPS（Nginx/Ingress TLS 终止），CORS 仅允许显式配置的 Origin。
+- 生产强制 HTTPS（OpenResty/Ingress TLS 终止），CORS 仅允许显式配置的 Origin。
 - Secret 只通过环境变量注入，禁止写入 YAML 或提交到仓库；日志脱敏密钥与完整签名 URL。
 - PostgreSQL/Redis 不暴露公网（Compose 仅内部网络，K8s 无外部 Service）。
 - 对象 Key 与目录相对路径均做防路径逃逸校验；上传会话校验所有权，Complete/Abort 幂等。
