@@ -36,6 +36,15 @@ bash scripts/build-images.sh            # 构建全部项目镜像（api/worker/
 bash scripts/build-images.sh --export   # 构建并 docker save 导出到 docker/images/
 ```
 
+> **镜像名前缀**：缺省 `pyuploadx-`（本仓库口径）。ikc-demo 全栈要求 `ikc-*`，此时加前缀即可
+> （非破坏性，缺省不变）：
+> ```bash
+> IMAGE_PREFIX=ikc-pyuploadx- bash scripts/build-images.sh --export
+> # 镜像 ikc-pyuploadx-{upload-api,migrate,worker,portal,gateway}:latest
+> # 包   docker/images/ikc-pyuploadx-*_latest.tar（ikc-demo 的 scripts/load-images.sh 可直接导入）
+> ```
+> 加固 MinIO `pyuploadx/minio-haproxy` 不受前缀影响（ikc 栈用上游 `minio/minio` → `ikc-minio`/`ikc-minio-mc`）。
+
 > 第三方基础镜像（`postgres:16-alpine`、`redis:7-alpine`、`minio/mc:latest`）不随脚本构建，
 > 离线发布时需另行 `docker pull` 后按下方命令 `docker save`。
 
