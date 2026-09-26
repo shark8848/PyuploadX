@@ -81,7 +81,8 @@ export interface ListFilesParams {
   status?: string;
   limit?: number;
   offset?: number;
-  sortBy?: "name" | "created_at";
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
 }
 
 export interface UploadSession {
@@ -444,6 +445,9 @@ export function listFiles(params: ListFilesParams = {}): Promise<FilePage> {
   query.set("limit", String(params.limit ?? 50));
   query.set("offset", String(params.offset ?? 0));
   query.set("sort_by", params.sortBy ?? "name");
+  if (params.sortOrder) {
+    query.set("sort_order", params.sortOrder);
+  }
   return request<FilePage>(`/v1/files?${query.toString()}`);
 }
 

@@ -16,6 +16,20 @@ from app.services.file_service import serialize_file
 
 router = APIRouter(prefix="/files", tags=["files"])
 
+# Sort fields and directions for GET /v1/files (docs_product-design.md section 16.2);
+# `name` is the legacy alias of `object_key`.
+SortField = Literal[
+    "name",
+    "object_key",
+    "bucket",
+    "size_bytes",
+    "content_type",
+    "status",
+    "expires_at",
+    "created_at",
+]
+SortOrder = Literal["asc", "desc"]
+
 
 @router.get("")
 async def list_files(
@@ -27,7 +41,8 @@ async def list_files(
     status: Annotated[FileStatus | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
-    sort_by: Annotated[Literal["name", "created_at"], Query()] = "name",
+    sort_by: Annotated[SortField, Query()] = "name",
+    sort_order: Annotated[SortOrder | None, Query()] = None,
 ) -> dict[str, Any]:
     items, total = await repositories.file_repository.list_files(
         db,
@@ -38,6 +53,7 @@ async def list_files(
         limit=limit,
         offset=offset,
         order_by=sort_by,
+        order=sort_order,
     )
     return {
         "items": [serialize_file(item) for item in items],

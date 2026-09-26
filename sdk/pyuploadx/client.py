@@ -539,9 +539,17 @@ class UploadClient:
         limit: int = 50,
         offset: int = 0,
         sort_by: str = "name",
+        sort_order: str | None = None,
     ) -> dict[str, Any]:
-        """Page over file objects (docs 16.2); returns {"items": [...], "total": n}."""
+        """Page over file objects (docs 16.2); returns {"items": [...], "total": n}.
+
+        `sort_by` takes object_key (alias `name`) | bucket | size_bytes | content_type |
+        status | expires_at | created_at; `sort_order` is asc/desc, defaulting per field
+        (created_at newest-first, everything else ascending).
+        """
         params: dict[str, Any] = {"limit": limit, "offset": offset, "sort_by": sort_by}
+        if sort_order:
+            params["sort_order"] = sort_order
         if bucket:
             params["bucket"] = bucket
         if prefix:

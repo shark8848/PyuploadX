@@ -5,15 +5,31 @@ from __future__ import annotations
 import io
 
 
-def _upload(client, headers, object_key: str, body: bytes = b"data") -> str:
+def _upload(
+    client,
+    headers,
+    object_key: str,
+    body: bytes = b"data",
+    content_type: str = "application/octet-stream",
+    lifecycle: str | None = None,
+) -> str:
+    data = {"bucket": "app-default", "object_key": object_key}
+    if lifecycle:
+        data["lifecycle"] = lifecycle
     response = client.post(
         "/v1/files/upload",
         headers=headers,
-        data={"bucket": "app-default", "object_key": object_key},
-        files={"file": ("f.bin", io.BytesIO(body), "application/octet-stream")},
+        data=data,
+        files={"file": ("f.bin", io.BytesIO(body), content_type)},
     )
     assert response.status_code == 200, response.text
     return response.json()["id"]
+
+
+def _keys(client, headers, **params) -> list[str]:
+    response = client.get("/v1/files", headers=headers, params=params)
+    assert response.status_code == 200, response.text
+    return [item["object_key"] for item in response.json()["items"]]
 
 
 def test_list_files_pagination_and_filters(client, auth_headers):
@@ -77,6 +93,110 @@ def test_list_files_validates_query_parameters(client, auth_headers):
     assert client.get("/v1/files", headers=auth_headers, params={"offset": -1}).status_code == 422
     assert client.get("/v1/files", headers=auth_headers, params={"status": "bogus"}).status_code == 422
     assert client.get("/v1/files", headers=auth_headers, params={"sort_by": "size"}).status_code == 422
+
+
+def test_list_files_sorts_by_every_column(client, auth_headers):
+    """Every file-browser column is sortable (docs §16.2), in both directions."""
+    prefix = "sort-all/"
+    _upload(client, auth_headers, f"{prefix}b.txt", b"bb", "image/png")
+    _upload(client, auth_headers, f"{prefix}a.txt", b"aaaa", "text/plain")
+    _upload(client, auth_headers, f"{prefix}c.txt", b"c", "application/json")
+    by_key = [f"{prefix}a.txt", f"{prefix}b.txt", f"{prefix}c.txt"]
+
+    # object_key ascending by default; `name` is the historical alias of object_key
+    assert _keys(client, auth_headers, prefix=prefix, sort_by="object_key") == by_key
+    assert _keys(client, auth_headers, prefix=prefix, sort_by="name") == by_key
+    assert (
+        _keys(client, auth_headers, prefix=prefix, sort_by="object_key", sort_order="desc")
+        == by_key[::-1]
+    )
+
+    # size_bytes: c(1) < b(2) < a(4)
+    assert _keys(
+        client, auth_headers, prefix=prefix, sort_by="size_bytes", sort_order="asc"
+    ) == [f"{prefix}c.txt", f"{prefix}b.txt", f"{prefix}a.txt"]
+    assert _keys(
+        client, auth_headers, prefix=prefix, sort_by="size_bytes", sort_order="desc"
+    ) == [f"{prefix}a.txt", f"{prefix}b.txt", f"{prefix}c.txt"]
+
+    # content_type: application/json < image/png < text/plain
+    assert _keys(client, auth_headers, prefix=prefix, sort_by="content_type") == [
+        f"{prefix}c.txt",
+        f"{prefix}b.txt",
+        f"{prefix}a.txt",
+    ]
+    assert _keys(
+        client, auth_headers, prefix=prefix, sort_by="content_type", sort_order="desc"
+    ) == [f"{prefix}a.txt", f"{prefix}b.txt", f"{prefix}c.txt"]
+
+    # created_at keeps its historical default (newest first) and is reversible
+    newest_first = client.get(
+        "/v1/files", headers=auth_headers, params={"prefix": prefix, "sort_by": "created_at"}
+    ).json()["items"]
+    stamps = [item["created_at"] for item in newest_first]
+    assert stamps == sorted(stamps, reverse=True)
+    assert {item["object_key"] for item in newest_first} == set(by_key)
+    oldest_first = client.get(
+        "/v1/files",
+        headers=auth_headers,
+        params={"prefix": prefix, "sort_by": "created_at", "sort_order": "asc"},
+    ).json()["items"]
+    ascending = [item["created_at"] for item in oldest_first]
+    assert ascending == sorted(ascending)
+
+    # Equal values still page deterministically: the tiebreaker is always object_key ascending,
+    # so both directions agree here (all three rows share bucket and status).
+    for field in ("bucket", "status"):
+        assert _keys(client, auth_headers, prefix=prefix, sort_by=field) == by_key
+        assert (
+            _keys(client, auth_headers, prefix=prefix, sort_by=field, sort_order="desc") == by_key
+        )
+
+
+def test_list_files_keeps_permanent_files_last_when_sorting_by_expiry(client, auth_headers):
+    prefix = "sort-expiry/"
+    ttl = '{"mode":"ttl","ttl_seconds":3600}'
+    _upload(client, auth_headers, f"{prefix}ttl-1.txt", lifecycle=ttl)
+    _upload(client, auth_headers, f"{prefix}permanent.txt", lifecycle='{"mode":"permanent"}')
+    _upload(client, auth_headers, f"{prefix}ttl-2.txt", lifecycle=ttl)
+    permanent = f"{prefix}permanent.txt"
+    expiring = {f"{prefix}ttl-1.txt", f"{prefix}ttl-2.txt"}
+
+    ascending = _keys(
+        client, auth_headers, prefix=prefix, sort_by="expires_at", sort_order="asc"
+    )
+    descending = _keys(
+        client, auth_headers, prefix=prefix, sort_by="expires_at", sort_order="desc"
+    )
+    # A null expires_at means "permanent": those rows must not float to the top on DESC.
+    assert ascending[-1] == permanent
+    assert descending[-1] == permanent
+    assert set(ascending[:2]) == expiring
+    assert ascending[:2] != descending[:2]
+
+    # Paging a sorted list must not repeat or skip rows within the filtered set.
+    first = client.get(
+        "/v1/files",
+        headers=auth_headers,
+        params={"prefix": prefix, "sort_by": "size_bytes", "limit": 2},
+    ).json()["items"]
+    second = client.get(
+        "/v1/files",
+        headers=auth_headers,
+        params={"prefix": prefix, "sort_by": "size_bytes", "limit": 2, "offset": 2},
+    ).json()["items"]
+    assert len({item["id"] for item in first} | {item["id"] for item in second}) == 3
+
+    assert (
+        client.get(
+            "/v1/files", headers=auth_headers, params={"sort_order": "sideways"}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.get("/v1/files", headers=auth_headers, params={"sort_by": "etag"}).status_code
+        == 422
+    )
 
 
 def test_list_files_requires_auth(client):

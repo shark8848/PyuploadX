@@ -13,6 +13,26 @@ interface Props {
 
 const PAGE_SIZE = 50;
 
+/** Sortable file fields — must stay in sync with `sort_by` in app/api/v1/files.py (docs §16.2). */
+const SORT_FIELDS = [
+  "object_key",
+  "bucket",
+  "size_bytes",
+  "content_type",
+  "status",
+  "expires_at",
+  "created_at",
+] as const;
+
+type SortField = (typeof SORT_FIELDS)[number];
+
+interface SortState {
+  field: SortField;
+  order: "asc" | "desc";
+}
+
+const DEFAULT_SORT: SortState = { field: "object_key", order: "asc" };
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) {
     return `${bytes} B`;
@@ -50,7 +70,7 @@ export default function FilesPage({
   const { t } = useI18n();
 
   const [status, setStatus] = useState("active");
-  const [sortBy, setSortBy] = useState<"name" | "created_at">("name");
+  const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<api.FilePage | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,7 +87,8 @@ export default function FilesPage({
           status: status || undefined,
           limit: PAGE_SIZE,
           offset,
-          sortBy,
+          sortBy: sort.field,
+          sortOrder: sort.order,
         }),
       );
     } catch (err) {
@@ -75,7 +96,7 @@ export default function FilesPage({
     } finally {
       setLoading(false);
     }
-  }, [bucket, prefix, status, offset, sortBy, messageApi, t]);
+  }, [bucket, prefix, status, offset, sort, messageApi, t]);
 
   useEffect(() => {
     void reload();
@@ -200,23 +221,37 @@ export default function FilesPage({
     }),
   };
 
+  // Every data column sorts server-side (the page is paginated server-side, so sorting the
+  // current page in the browser would be wrong); the actions column stays unsortable.
+  const sortable = (field: SortField) => ({
+    sorter: true,
+    sortOrder:
+      sort.field === field
+        ? sort.order === "asc"
+          ? ("ascend" as const)
+          : ("descend" as const)
+        : null,
+  });
+
   const columns: ColumnsType<api.FileInfo> = [
     {
       title: t("files.colObject"),
       dataIndex: "object_key",
       width: 240,
       ellipsis: true,
+      ...sortable("object_key"),
       render: (value: string, record) => (
         <span title={record.original_filename} style={{ fontFamily: "ui-monospace, monospace" }}>
           {value}
         </span>
       ),
     },
-    { title: t("files.colBucket"), dataIndex: "bucket", width: 130 },
+    { title: t("files.colBucket"), dataIndex: "bucket", width: 130, ...sortable("bucket") },
     {
       title: t("files.colSize"),
       dataIndex: "size_bytes",
       width: 100,
+      ...sortable("size_bytes"),
       render: (value: number) => formatSize(value),
     },
     {
@@ -224,12 +259,14 @@ export default function FilesPage({
       dataIndex: "content_type",
       width: 180,
       ellipsis: true,
+      ...sortable("content_type"),
       render: (value?: string) => value ?? "—",
     },
     {
       title: t("files.colStatus"),
       dataIndex: "status",
       width: 90,
+      ...sortable("status"),
       render: (value: string) => (
         <Tag color={value === "deleted" ? "error" : "success"}>{value}</Tag>
       ),
@@ -238,12 +275,14 @@ export default function FilesPage({
       title: t("files.colExpires"),
       dataIndex: "expires_at",
       width: 160,
+      ...sortable("expires_at"),
       render: (value?: string) => formatDate(value),
     },
     {
       title: t("files.colCreated"),
       dataIndex: "created_at",
       width: 160,
+      ...sortable("created_at"),
       render: (value?: string) => formatDate(value),
     },
     {
@@ -318,21 +357,6 @@ export default function FilesPage({
             style={{ width: 110 }}
           />
         </span>
-        <span>
-          {t("files.sort")}
-          <Select
-            value={sortBy}
-            onChange={(value) => {
-              setSortBy(value);
-              setOffset(0);
-            }}
-            options={[
-              { value: "name", label: t("files.sortName") },
-              { value: "created_at", label: t("files.sortCreated") },
-            ]}
-            style={{ width: 130 }}
-          />
-        </span>
       </Space>
       {selectedKeys.length > 0 && (
         <Space wrap style={{ marginBottom: 12 }} size={8}>
@@ -361,6 +385,19 @@ export default function FilesPage({
         scroll={{ x: "max-content" }}
         rowSelection={rowSelection}
         locale={{ emptyText: t("files.empty") }}
+        onChange={(_pagination, _filters, sorter, extra) => {
+          if (extra.action !== "sort") {
+            return;
+          }
+          const active = Array.isArray(sorter) ? sorter[0] : sorter;
+          const field = active?.field as SortField | undefined;
+          if (active?.order && field && SORT_FIELDS.includes(field)) {
+            setSort({ field, order: active.order === "descend" ? "desc" : "asc" });
+          } else {
+            setSort(DEFAULT_SORT);
+          }
+          setOffset(0);
+        }}
         pagination={{
           current: Math.floor(offset / PAGE_SIZE) + 1,
           pageSize: PAGE_SIZE,
