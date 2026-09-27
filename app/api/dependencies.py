@@ -8,10 +8,12 @@ from dataclasses import dataclass, field
 from typing import Annotated
 
 from fastapi import Depends, Header, Request
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.config.models import Settings
 from app.core.auth import ApiKeyAuthenticator, Identity
+from app.core.redis import build_redis
 from app.db.session import build_engine, build_session_factory
 from app.services.bucket_service import BucketService
 from app.services.directory_upload_service import DirectoryUploadService
@@ -30,6 +32,7 @@ class AppState:
     session_factory: async_sessionmaker[AsyncSession]
     storage: StorageAdapter
     authenticator: ApiKeyAuthenticator
+    redis: Redis | None = None
     upload_service: UploadService = field(init=False)
     file_service: FileService = field(init=False)
     lifecycle_service: LifecycleService = field(init=False)
@@ -57,6 +60,7 @@ def build_app_state(settings: Settings) -> AppState:
         session_factory=session_factory,
         storage=storage,
         authenticator=authenticator,
+        redis=build_redis(settings),
     )
 
 

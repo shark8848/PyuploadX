@@ -28,8 +28,9 @@ database:
 
 redis:
   enabled: true
-  url_from_env: UPLOAD_REDIS_URL
   key_prefix: upload-service
+  # 连接形态（single / replica / sentinel）与连接参数由 UPLOAD_REDIS_MODE / UPLOAD_REDIS_URL /
+  # UPLOAD_SENTINEL_* 环境变量决定，公共工厂 ikc_sdk.redis 装配（见 app/core/redis.py）。
 
 storage:
   backend: s3

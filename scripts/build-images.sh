@@ -36,6 +36,34 @@ if [ "${1:-}" = "--export" ]; then
     EXPORT=true
 fi
 
+# ---------------------------------------------------------------------------
+# 固定版本依赖 wheel 预置（ikc-sdk-lib：Redis 单机 / 副本 / 哨兵工厂）
+#   版本唯一来源 = pyproject.toml 的 == pin（不在此写死版本，避免与 pyproject 漂移）；
+#   wheel 从 $IKC_SDK_LIB_DIST 复制到 docker/wheels/（Dockerfile 先装它，离线/内网构建不请求索引）。
+# ---------------------------------------------------------------------------
+IKC_SDK_LIB_DIST="${IKC_SDK_LIB_DIST:-/home/sharkyai/ikc-sdk-lib/dist}"
+
+prepare_wheels() {
+  local pin wheel
+  pin="$(sed -n 's/^[[:space:]]*"ikc-sdk-lib==\([0-9][0-9.]*\)".*/\1/p' pyproject.toml | head -1)"
+  if [[ -z "$pin" ]]; then
+    echo "[err] pyproject.toml 未钉 ikc-sdk-lib==<version>" >&2
+    exit 1
+  fi
+  wheel="${IKC_SDK_LIB_DIST}/ikc_sdk_lib-${pin}-py3-none-any.whl"
+  if [[ ! -f "$wheel" ]]; then
+    echo "[err] 缺少 $wheel" >&2
+    echo "      先在 ikc-sdk-lib 跑 bash scripts/publish-noupload.sh 生成该版本 wheel，" >&2
+    echo "      或用 IKC_SDK_LIB_DIST=<其它 dist 目录> 指向已有产物。" >&2
+    exit 1
+  fi
+  mkdir -p docker/wheels
+  rm -f docker/wheels/*.whl
+  cp "$wheel" docker/wheels/
+  echo "[wheel] ikc-sdk-lib ${pin} → docker/wheels/$(basename "$wheel")"
+}
+prepare_wheels
+
 echo ">>> Building app images (api / worker)... [前缀 ${IMAGE_PREFIX}]"
 docker build --target api -t "$API_IMAGE" .
 docker tag "$API_IMAGE" "$MIGRATE_IMAGE"

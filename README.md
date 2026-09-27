@@ -29,6 +29,10 @@ PostgreSQL / Redis / MinIO 等第三方组件**不随应用镜像构建**：默�
 # 可选：覆盖默认地址与凭据
 export UPLOAD_DATABASE_URL='postgresql+asyncpg://upload:upload@localhost:5432/uploads'
 export UPLOAD_REDIS_URL='redis://localhost:6379/0'
+# 哨兵形态改为（连接面由公共工厂 ikc_sdk.redis 装配，与四个引擎的 <PREFIX>_* 口径一致）：
+# export UPLOAD_REDIS_MODE=sentinel
+# export UPLOAD_SENTINEL_NODES='10.0.0.1:26380,10.0.0.2:26380,10.0.0.3:26380'
+# export UPLOAD_SENTINEL_MASTER_NAME=mymaster UPLOAD_SENTINEL_PASSWORD=<master 口令> UPLOAD_SENTINEL_DB=7
 export UPLOAD_STORAGE__S3__INTERNAL_ENDPOINT_URL='http://localhost:9000'
 export S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin
 # 推荐：portal 自动获取 token（OpenResty 注入 X-API-Key），无需在浏览器粘贴 API Key。
@@ -171,7 +175,9 @@ python -m upload_service reconcile upload {upload_id} --dry-run
 |---|---|
 | `UPLOAD_API_KEYS` | JSON：`{"tenant/principal": ["key"]}` 或 key 数组 |
 | `UPLOAD_DATABASE_URL` | SQLAlchemy 异步 URL |
-| `UPLOAD_REDIS_URL` | Redis URL（`UPLOAD_REDIS__ENABLED=false` 可关闭） |
+| `UPLOAD_REDIS_URL` | Redis URL（`single` / `replica` 形态；要连哨兵代理就是这一形态 + 代理地址） |
+| `UPLOAD_REDIS_MODE` | 连接形态：`single`（缺省）/ `replica` / `sentinel`；`UPLOAD_REDIS__ENABLED=false` 可关闭 |
+| `UPLOAD_SENTINEL_NODES` | `sentinel` 形态必填：`host:port,host:port,...`；另有 `UPLOAD_SENTINEL_MASTER_NAME`（缺省 `mymaster`）、`UPLOAD_SENTINEL_PASSWORD`（master 口令）、`UPLOAD_SENTINEL_AUTH_PASSWORD`（哨兵节点口令，缺省复用 master 口令）、`UPLOAD_SENTINEL_DB`（缺省 0） |
 | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | S3/MinIO 凭据 |
 
 ## 备份与恢复

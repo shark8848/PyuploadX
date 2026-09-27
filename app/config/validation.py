@@ -40,6 +40,19 @@ def validate_settings(settings: Settings) -> ValidationResult:
             result.ok = False
             result.errors.append("S3 credentials must be provided via environment variables")
 
+    if settings.redis.enabled:
+        from app.core.redis import connection_config
+
+        redis_config = connection_config()
+        if redis_config.mode not in ("single", "replica", "sentinel"):
+            result.ok = False
+            result.errors.append(
+                f"redis mode must be one of single|replica|sentinel (got {redis_config.mode!r})"
+            )
+        elif redis_config.mode == "sentinel" and not redis_config.sentinel_nodes:
+            result.ok = False
+            result.errors.append("redis sentinel mode requires UPLOAD_SENTINEL_NODES (host:port,...)")
+
     if not settings.storage.allowed_buckets:
         result.ok = False
         result.errors.append("storage.allowed_buckets must not be empty")

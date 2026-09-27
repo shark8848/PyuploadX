@@ -19,6 +19,11 @@ async def _check_ready(state: AppState) -> bool:
                 pass
         except Exception:
             return False
+    if checks.check_redis and state.redis is not None:
+        try:
+            await state.redis.ping()
+        except Exception:
+            return False
     return True
 
 

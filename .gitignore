@@ -32,3 +32,6 @@ build/
 
 # Exported docker image tarballs (build-images.sh --export)
 docker/images/
+
+# 预置依赖 wheel（build-images.sh 按 pyproject.toml 的 == pin 生成；见 Dockerfile）
+docker/wheels/*.whl

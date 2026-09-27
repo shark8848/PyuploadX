@@ -38,7 +38,6 @@ def _redact(settings: Settings) -> Settings:
 
     redacted = copy.deepcopy(settings)
     redacted.database.url = redacted.database.url or ""
-    redacted.redis.url = redacted.redis.url or ""
     redacted.storage.s3.access_key = "***"
     redacted.storage.s3.secret_key = "***"
     return redacted

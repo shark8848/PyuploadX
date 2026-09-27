@@ -1848,8 +1848,10 @@ database:
 
 redis:
   enabled: true
-  url_from_env: UPLOAD_REDIS_URL
   key_prefix: upload-service
+  # 连接形态（single / replica / sentinel）与连接参数不在 YAML 里：由公共工厂
+  # `ikc_sdk.redis` 从 UPLOAD_REDIS_MODE / UPLOAD_REDIS_URL / UPLOAD_SENTINEL_* 解析并装配
+  # （见 app/core/redis.py；与四个引擎的 `<PREFIX>_*` Celery 面同一套口径）。
 
 storage:
   backend: s3
@@ -2123,6 +2125,11 @@ DO UPDATE SET
 ## 20.6 Redis 的角色
 
 Redis 锁只能减少重复工作。
+
+连接面（单机 / 副本 / 哨兵）统一由公共工厂 `ikc_sdk.redis` 装配：形态取 `UPLOAD_REDIS_MODE`，
+单机 / 副本取 `UPLOAD_REDIS_URL`，哨兵取 `UPLOAD_SENTINEL_NODES` + `_MASTER_NAME` / `_PASSWORD` /
+`_AUTH_PASSWORD` / `_DB`；`/readyz` 在 `cluster.readiness.check_redis` 打开且客户端已装配时
+`PING` 探测（`app/core/redis.py`）。哨兵形态下 `UPLOAD_REDIS_URL` 不参与。
 
 最终正确性依赖：
 

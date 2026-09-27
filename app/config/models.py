@@ -48,9 +48,14 @@ class DatabaseConfig(BaseModel):
 
 
 class RedisConfig(BaseModel):
+    """Redis 开关与前缀。
+
+    连接形态（single / replica / sentinel）与连接参数由公共工厂 `ikc_sdk.redis` 从
+    `UPLOAD_REDIS_MODE` / `UPLOAD_REDIS_URL` / `UPLOAD_SENTINEL_*` 解析并装配
+    （见 `app/core/redis.py`）——这里只留开关与 key 前缀，避免两处口径。
+    """
+
     enabled: bool = True
-    url_from_env: str = "UPLOAD_REDIS_URL"
-    url: str | None = None
     key_prefix: str = "upload-service"
 
 
@@ -307,8 +312,6 @@ class Settings(BaseModel):
 
         if self.database.url is None:
             self.database.url = os.environ.get(self.database.url_from_env)
-        if self.redis.url is None:
-            self.redis.url = os.environ.get(self.redis.url_from_env)
         if self.storage.s3.access_key is None:
             self.storage.s3.access_key = os.environ.get(self.storage.s3.access_key_from_env)
         if self.storage.s3.secret_key is None:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyuploadx-server"
-version = "0.1.6"
+version = "0.1.7"
 description = "PyUploadX file and directory upload service (FastAPI backend)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -35,6 +35,9 @@ dependencies = [
     "PyYAML>=6.0,<7",
     "prometheus-client>=0.20,<1",
     "python-multipart>=0.0.9,<1",
+    # Redis 连接面单一来源（单机 / 副本 / 哨兵工厂）：ikc_sdk.redis。== 精确 pin，wheel 由
+    # scripts/build-images.sh 按该 pin 预置到 docker/wheels/（离线/内网构建用；见 Dockerfile）。
+    "ikc-sdk-lib==0.12.2",
 ]
 
 [project.optional-dependencies]

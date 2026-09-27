@@ -7,3 +7,4 @@ portal/dist
 docs/assets/png
 .git
 tests
+docker/images

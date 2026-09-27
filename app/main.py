@@ -90,6 +90,8 @@ def create_app(settings: Any = None, config_path: str | None = None) -> FastAPI:
 
             await create_tables(state.engine)
         yield
+        if state.redis is not None:
+            await state.redis.aclose()
         await state.engine.dispose()
 
     app = FastAPI(
