@@ -7,7 +7,7 @@ name = "pyuploadx"
 version = "0.10.1"
 description = "PyUploadX Python client SDK - file and directory upload with multipart resume and lifecycle"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "PyUploadX Contributors" }]
 keywords = ["upload", "sdk", "multipart", "resume", "directory-upload", "lifecycle", "pyuploadx"]

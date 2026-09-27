@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Build the hardened MinIO image (MinIO + HAProxy front) from local base
-# images, so no registry access is required. Override the target tag or the
-# MinIO base image via MINIO_IMAGE_TAG / MINIO_BASE_IMAGE.
+# images, so no registry access is required. The tag follows the same
+# IMAGE_PREFIX rule as scripts/build-images.sh; override it directly with
+# MINIO_IMAGE_TAG, or the MinIO base image with MINIO_BASE_IMAGE.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-IMAGE_TAG="${MINIO_IMAGE_TAG:-pyuploadx/minio-haproxy:latest}"
+IMAGE_PREFIX="${IMAGE_PREFIX:-pyuploadx-}"
+IMAGE_TAG="${MINIO_IMAGE_TAG:-${IMAGE_PREFIX}minio-haproxy:latest}"
 MINIO_BASE_IMAGE="${MINIO_BASE_IMAGE:-minio/minio:latest}"
 
 docker build \

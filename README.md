@@ -77,7 +77,8 @@ bash scripts/build-images.sh            # 构建全部项目镜像
 bash scripts/build-images.sh --export   # 构建并 docker save 导出到 docker/images/
 ```
 
-加固 MinIO 镜像 `pyuploadx/minio-haproxy:latest` 让 MinIO 仅监听容器内回环地址、外部只走
+加固 MinIO 镜像 `pyuploadx-minio-haproxy:latest`（随 `IMAGE_PREFIX`，ikc 口径为
+`ikc-pyuploadx-minio-haproxy:latest`）让 MinIO 仅监听容器内回环地址、外部只走
 HAProxy（9000 S3 / 9001 控制台）；数据必须外部挂载（`-v /data/minio:/data`），不进镜像。
 
 启动后：

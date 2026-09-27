@@ -9,7 +9,7 @@
 # Run:    docker run -d --name pyuploadx-minio --restart unless-stopped \
 #           -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
 #           -v /data/minio:/data -p 9000:9000 -p 9001:9001 \
-#           pyuploadx/minio-haproxy:latest /data
+#           pyuploadx-minio-haproxy:latest /data
 #
 # Data is NEVER stored in the image: /data must be mounted from the host
 # directory (or a named volume) at runtime; removing/recreating the container

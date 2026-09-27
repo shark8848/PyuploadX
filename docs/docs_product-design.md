@@ -2396,12 +2396,12 @@ deploy/nginx/Dockerfile（OpenResty 网关）
 | `pyuploadx-worker` | worker | `python -m app.worker.main` | 常驻后台任务 | 无 |
 | `pyuploadx-portal` | portal | `OpenResty` 托管静态资源 | 常驻 Web | 80 → 5173 |
 | `pyuploadx-gateway` | 生产网关 | `OpenResty` TLS 终止 + 反代 | 常驻 Web | 80 / 443 |
-| `pyuploadx/minio-haproxy` | 加固 MinIO | 回环 MinIO + HAProxy 前置 | 常驻存储 | 9000 / 9001 |
+| `pyuploadx-minio-haproxy` | 加固 MinIO | 回环 MinIO + HAProxy 前置 | 常驻存储 | 9000 / 9001 |
 
 一键构建全部项目镜像：
 
 ```bash
-bash scripts/build-images.sh            # api / worker / portal / gateway / migrate / pyuploadx/minio-haproxy
+bash scripts/build-images.sh            # api / worker / portal / gateway / migrate / minio-haproxy
 bash scripts/build-images.sh --export   # 构建并 docker save 导出到 docker/images/
 ```
 

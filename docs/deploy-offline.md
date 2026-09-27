@@ -11,6 +11,7 @@
 | `pyuploadx-portal:latest` | ~110 MB | `portal/Dockerfile` | Portal 前端（OpenResty） |
 | `pyuploadx-gateway:latest` | ~110 MB | `deploy/nginx/Dockerfile` | 生产网关（OpenResty，TLS 终止 + 反代；可选） |
 | `pyuploadx-migrate:latest` | ~358 MB | `Dockerfile` target `api` | 一次性迁移（与 upload-api 同构建，仅入口为 `alembic upgrade head`） |
+| `pyuploadx-minio-haproxy:latest` | ~197 MB | `deploy/minio/Dockerfile` | 加固 MinIO（回环 MinIO + HAProxy 前置；可选，独立部署用） |
 | `postgres:16-alpine` | ~420 MB | Docker Hub | 自带 PostgreSQL |
 | `redis:7-alpine` | ~58 MB | Docker Hub | 自带 Redis |
 | `minio/minio:latest` | ~241 MB | Docker Hub | 自带对象存储（compose 模式；数据外部卷挂载） |
@@ -21,7 +22,7 @@
 > **数据一律外部挂载，不进镜像**：镜像只包含程序，不包含任何业务数据。
 > - PostgreSQL / MinIO 数据存放在 compose 命名卷（`pyuploadx_postgres-data` /
 >   `pyuploadx_minio-data`），删除或重建容器不丢数据；备份/恢复直接针对卷或宿主目录操作。
-> - 独立运行加固 MinIO 镜像（`pyuploadx/minio-haproxy:latest`）时必须显式挂载外部数据目录：
+> - 独立运行加固 MinIO 镜像（`pyuploadx-minio-haproxy:latest`）时必须显式挂载外部数据目录：
 >   `docker run -v /data/minio:/data ...`，镜像内不存在数据（见第 11 节）。
 
 ## 2. 本机导出
@@ -29,7 +30,7 @@
 ### 2.0 一键构建全部镜像（可选）
 
 项目镜像（`pyuploadx-upload-api` / `pyuploadx-worker` / `pyuploadx-portal` /
-`pyuploadx-gateway` / `pyuploadx-migrate` / 加固 MinIO `pyuploadx/minio-haproxy`）可一键构建：
+`pyuploadx-gateway` / `pyuploadx-migrate` / 加固 MinIO `pyuploadx-minio-haproxy`）可一键构建：
 
 ```bash
 bash scripts/build-images.sh            # 构建全部项目镜像（api/worker/portal/gateway/migrate/minio-haproxy）
@@ -43,7 +44,11 @@ bash scripts/build-images.sh --export   # 构建并 docker save 导出到 docker
 > # 镜像 ikc-pyuploadx-{upload-api,migrate,worker,portal,gateway}:latest
 > # 包   docker/images/ikc-pyuploadx-*_latest.tar（ikc-demo 的 scripts/load-images.sh 可直接导入）
 > ```
-> 加固 MinIO `pyuploadx/minio-haproxy` 不受前缀影响（ikc 栈用上游 `minio/minio` → `ikc-minio`/`ikc-minio-mc`）。
+> 加固 MinIO 与其余五个镜像同一规则（缺省 `pyuploadx-minio-haproxy:latest`，ikc 口径
+> `ikc-pyuploadx-minio-haproxy:latest`，包名 `docker/images/ikc-pyuploadx-minio-haproxy_latest.tar`）。
+> 需要历史名 `pyuploadx/minio-haproxy:latest` 时：
+> `MINIO_HAPROXY_IMAGE=pyuploadx/minio-haproxy:latest bash scripts/build-images.sh --export`。
+> 注意 ikc 栈的 `ikc-minio`（= 上游 `minio/minio`）与 `ikc-minio-mc`（= `minio/mc`）是另外两件，不能互顶。
 
 > 第三方基础镜像（`postgres:16-alpine`、`redis:7-alpine`、`minio/mc:latest`）不随脚本构建，
 > 离线发布时需另行 `docker pull` 后按下方命令 `docker save`。
@@ -391,38 +396,40 @@ docker compose -f deploy/cluster/compose.yaml up -d --no-build --scale upload-ap
 
 ## 11. 加固 MinIO 镜像（独立部署）
 
-`pyuploadx/minio-haproxy:latest` 为加固镜像：MinIO 只监听容器内回环地址
+`pyuploadx-minio-haproxy:latest`（随 `IMAGE_PREFIX`，ikc 口径 `ikc-pyuploadx-minio-haproxy:latest`）
+为加固镜像：MinIO 只监听容器内回环地址
 （S3 `127.0.0.1:19000` / 控制台 `127.0.0.1:19001`），外部仅通过容器内 HAProxy
 暴露 `9000`（S3 API）与 `9001`（控制台），屏蔽 MinIO 服务端直连面。
 
 本机构建（脚本基于本地缓存的基础镜像离线构建，无需访问外网）：
 
 ```bash
-bash deploy/minio/build.sh                          # 构建 pyuploadx/minio-haproxy:latest
+bash deploy/minio/build.sh                          # 构建 pyuploadx-minio-haproxy:latest
 
 # 可选参数：
-MINIO_IMAGE_TAG=registry.example.com/pyuploadx/minio-haproxy:latest bash deploy/minio/build.sh
+IMAGE_PREFIX=ikc-pyuploadx- bash deploy/minio/build.sh    # 换前缀（→ ikc-pyuploadx-minio-haproxy:latest）
+MINIO_IMAGE_TAG=registry.example.com/pyuploadx-minio-haproxy:latest bash deploy/minio/build.sh
 MINIO_BASE_IMAGE=minio/minio:RELEASE.2025-09-07T16-13-09Z bash deploy/minio/build.sh   # 指定 MinIO 基础版本
 ```
 
 本机导出：
 
 ```bash
-docker save -o docker/images/pyuploadx__minio-haproxy_latest.tar \
-  pyuploadx/minio-haproxy:latest
+docker save -o docker/images/pyuploadx-minio-haproxy_latest.tar \
+  pyuploadx-minio-haproxy:latest
 ```
 
 目标机加载并运行（**数据必须外部挂载**，镜像内无数据）：
 
 ```bash
-docker load -i docker/images/pyuploadx__minio-haproxy_latest.tar
+docker load -i docker/images/pyuploadx-minio-haproxy_latest.tar
 
 # 宿主目录挂载（推荐，便于备份）：-v /data/minio:/data
 docker run -d --name pyuploadx-minio --restart unless-stopped \
   -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
   -v /data/minio:/data \
   -p 9000:9000 -p 9001:9001 \
-  pyuploadx/minio-haproxy:latest /data
+  pyuploadx-minio-haproxy:latest /data
 
 # 或命名卷挂载：-v minio-data:/data（同样不进镜像）
 ```
