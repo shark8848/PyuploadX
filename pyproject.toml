@@ -37,7 +37,7 @@ dependencies = [
     "python-multipart>=0.0.9,<1",
     # Redis 连接面单一来源（单机 / 副本 / 哨兵工厂）：ikc_sdk.redis。== 精确 pin，wheel 由
     # scripts/build-images.sh 按该 pin 预置到 docker/wheels/（离线/内网构建用；见 Dockerfile）。
-    "ikc-sdk-lib==0.12.2",
+    "ikc-sdk-lib==0.37.0",
 ]
 
 [project.optional-dependencies]
