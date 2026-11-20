@@ -158,7 +158,13 @@ class S3StorageAdapter:
     async def delete_object(self, bucket: str, object_key: str) -> None:
         try:
             await self._run(self._internal.delete_object, Bucket=bucket, Key=object_key)
-        except (BotoCoreError, ClientError) as exc:
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            # DELETE 的幂等语义：对象已不存在视为成功，避免 lifecycle 重试卡死。
+            if code in {"NoSuchKey", "404", "NotFound"}:
+                return
+            self._raise(exc)
+        except BotoCoreError as exc:
             self._raise(exc)
 
     async def create_bucket(self, bucket: str) -> None:

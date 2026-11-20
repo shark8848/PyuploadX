@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -35,7 +35,9 @@ async def _process_batch(
                 FileObject.status == FileStatus.active,
                 FileObject.next_action_at <= _now(),
                 FileObject.next_action_at.is_not(None),
-                FileObject.lifecycle_status == LifecycleStatus.active,
+                FileObject.lifecycle_status.in_(
+                    [LifecycleStatus.active, LifecycleStatus.deleting]
+                ),
             )
             .order_by(FileObject.next_action_at)
             .limit(batch_size)
@@ -58,8 +60,8 @@ async def _process_batch(
             old_status = file_obj.lifecycle_status
             try:
                 if action == "delete":
-                    file_obj.lifecycle_status = LifecycleStatus.deleting
-                    await session.flush()
+                    # 先删对象，再改库状态：S3 失败时不要把行留在 deleting（否则扫描
+                    # 条件只取 active，会永久卡死）。删除本身在 S3 适配器里按幂等处理。
                     await storage.delete_object(
                         bucket=file_obj.bucket, object_key=file_obj.object_key
                     )
@@ -95,6 +97,10 @@ async def _process_batch(
             except Exception:
                 metrics.lifecycle_action_failures_total.inc()
                 file_obj.delete_attempts += 1
+                # 兼容历史卡在 deleting 的行：失败后恢复 active，并按指数退避重试。
+                file_obj.lifecycle_status = LifecycleStatus.active
+                backoff = min(300, 2 ** min(file_obj.delete_attempts, 8))
+                file_obj.next_action_at = _now() + timedelta(seconds=backoff)
                 logger.exception(
                     "lifecycle action failed for file %s",
                     file_obj.id,

@@ -35,16 +35,18 @@ EXPORT=false
 if [ "${1:-}" = "--export" ]; then
     EXPORT=true
 fi
+CORE_ONLY="${IKC_PYUPLOADX_CORE_ONLY:-0}"
 
 # ---------------------------------------------------------------------------
-# 固定版本依赖 wheel 预置（ikc-sdk-lib：Redis 单机 / 副本 / 哨兵工厂）
+# 固定版本依赖 wheel 预置（ikc-sdk-lib + ikc-log-center-sdk）
 #   版本唯一来源 = pyproject.toml 的 == pin（不在此写死版本，避免与 pyproject 漂移）；
-#   wheel 从 $IKC_SDK_LIB_DIST 复制到 docker/wheels/（Dockerfile 先装它，离线/内网构建不请求索引）。
+#   wheel 从各自 dist 目录复制到 docker/wheels/，Dockerfile 先装，离线/内网构建不请求索引。
 # ---------------------------------------------------------------------------
 IKC_SDK_LIB_DIST="${IKC_SDK_LIB_DIST:-/home/sharkyai/ikc-sdk-lib/dist}"
+IKC_LOG_CENTER_DIST="${IKC_LOG_CENTER_DIST:-/home/ikc-log-center/dist}"
 
 prepare_wheels() {
-  local pin wheel
+  local pin wheel log_pin log_wheel
   pin="$(sed -n 's/^[[:space:]]*"ikc-sdk-lib==\([0-9][0-9.]*\)".*/\1/p' pyproject.toml | head -1)"
   if [[ -z "$pin" ]]; then
     echo "[err] pyproject.toml 未钉 ikc-sdk-lib==<version>" >&2
@@ -61,6 +63,19 @@ prepare_wheels() {
   rm -f docker/wheels/*.whl
   cp "$wheel" docker/wheels/
   echo "[wheel] ikc-sdk-lib ${pin} → docker/wheels/$(basename "$wheel")"
+
+  log_pin="$(sed -n 's/.*"ikc-log-center-sdk==\([0-9][0-9.]*\)".*/\1/p' pyproject.toml | head -1)"
+  if [[ -z "$log_pin" ]]; then
+    echo "[err] pyproject.toml 未钉 ikc-log-center-sdk==<version>" >&2
+    exit 1
+  fi
+  log_wheel="${IKC_LOG_CENTER_DIST}/ikc_log_center_sdk-${log_pin}-py3-none-any.whl"
+  if [[ ! -f "$log_wheel" ]]; then
+    echo "[err] 缺少 $log_wheel" >&2
+    exit 1
+  fi
+  cp "$log_wheel" docker/wheels/
+  echo "[wheel] ikc-log-center-sdk ${log_pin} → docker/wheels/$(basename "$log_wheel")"
 }
 prepare_wheels
 
@@ -69,14 +84,18 @@ docker build --target api -t "$API_IMAGE" .
 docker tag "$API_IMAGE" "$MIGRATE_IMAGE"
 docker build --target worker -t "$WORKER_IMAGE" .
 
-echo ">>> Building portal image..."
-docker build -t "$PORTAL_IMAGE" portal/
+if [ "$CORE_ONLY" = "1" ]; then
+  echo ">>> IKC_PYUPLOADX_CORE_ONLY=1：复用已有 portal / gateway / minio-haproxy，不重建"
+else
+  echo ">>> Building portal image..."
+  docker build -t "$PORTAL_IMAGE" portal/
 
-echo ">>> Building OpenResty gateway image..."
-docker build -t "$GATEWAY_IMAGE" deploy/nginx/
+  echo ">>> Building OpenResty gateway image..."
+  docker build -t "$GATEWAY_IMAGE" deploy/nginx/
 
-echo ">>> Building hardened MinIO image..."
-MINIO_IMAGE_TAG="$MINIO_HAPROXY_IMAGE" bash deploy/minio/build.sh
+  echo ">>> Building hardened MinIO image..."
+  MINIO_IMAGE_TAG="$MINIO_HAPROXY_IMAGE" bash deploy/minio/build.sh
+fi
 
 if [ "$EXPORT" = true ]; then
     echo ">>> Exporting images to docker/images/ ..."
